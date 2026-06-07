@@ -243,7 +243,7 @@ function secLbl(text){return el("div",{"class":"section-lbl"},text);}
 function detailCell(k,v){return el("div",{"class":"detail-cell"},el("div",{"class":"detail-lbl"},k),el("div",{"class":"detail-val"},v||"—"));}
 
 // ── File Upload ──
-function fileUpload(files,onAdd,accept){
+function fileUpload(files,onAdd,accept,onDelete){
   const wrap=el("div",{});
   const zone=el("div",{"class":"upload-zone"});
   const inp_=document.createElement("input");
@@ -260,13 +260,29 @@ function fileUpload(files,onAdd,accept){
   const list=el("div",{});
   function renderFileList(){
     list.innerHTML="";
-    files.forEach(f=>{
-      const row=el("div",{"class":"file-item"},
-        el("span",{},"📄"),
-        el("span",{"style":{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},f.name),
-        el("span",{"style":{color:"#94a3b8",fontSize:"10px"}},(f.size/1024).toFixed(0)+"KB · "+f.at)
-      );
-      if(f.data){const a=el("a",{href:f.data,download:f.name,"style":{color:A,fontSize:"11px",textDecoration:"none",fontWeight:600}},"↓");row.appendChild(a);}
+    files.forEach((f,idx)=>{
+      const row=el("div",{"class":"file-item"});
+      row.style.cssText="display:flex;align-items:center;gap:7px;font-size:11.5px;padding:4px 8px;background:#f1f5f9;border-radius:5px;margin-bottom:3px";
+      const icon=el("span",{},"📄");
+      const name=el("span",{"style":{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},f.name);
+      const meta=el("span",{"style":{color:"#94a3b8",fontSize:"10px",whiteSpace:"nowrap"}},(f.size/1024).toFixed(0)+"KB · "+f.at);
+      row.append(icon,name,meta);
+      if(f.data){
+        const a=el("a",{href:f.data,download:f.name,"style":{color:A,fontSize:"11px",textDecoration:"none",fontWeight:600,whiteSpace:"nowrap"}},"↓");
+        row.appendChild(a);
+      }
+      // Delete button
+      const delBtn=document.createElement("button");
+      delBtn.textContent="🗑";
+      delBtn.title="Delete attachment";
+      delBtn.style.cssText="background:none;border:none;cursor:pointer;color:#dc2626;font-size:13px;padding:0 0 0 2px;line-height:1;flex-shrink:0";
+      delBtn.addEventListener("click",()=>{
+        if(!confirm("Remove attachment \""+f.name+"\"?"))return;
+        files.splice(idx,1);
+        if(onDelete) onDelete(files);
+        renderFileList();
+      });
+      row.appendChild(delBtn);
       list.appendChild(row);
     });
   }
@@ -305,78 +321,275 @@ function printDoc(doc,type){
   const cu=db.customers.find(c=>c.id===doc.customerId);
   const ve=db.vendors.find(v=>v.id===doc.vendorId);
   const lo=db.locations.find(l=>l.id===doc.locationId)||db.locations[0];
-  const pa=cu||ve;const tot=doc.total||0;const di=Number(doc.discount)||0;
-  const rows=(doc.items||[]).map(i=>`<tr><td>${i.desc||i.description||""}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${f$(i.up||i.unitPrice||0)}</td><td style="text-align:right">${f$(Number(i.qty)*Number(i.up||i.unitPrice||0))}</td></tr>`).join("");
-  const meta=[[" Doc #",doc.number],["Date",doc.date],doc.leadTime?["Lead Time",doc.leadTime]:null,doc.validThrough?["Valid Through",doc.validThrough]:null,doc.quoteNumber?["Ref Quote",doc.quoteNumber]:null,doc.oaNumber?["Ref OA",doc.oaNumber]:null,doc.terms?["Terms",doc.terms]:null].filter(Boolean);
-  const html=`
-<div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #1B2A4A">
-  <div><div style="font-size:24px;font-weight:700;color:#1B2A4A">florrent</div><div style="font-size:9px;color:#999;letter-spacing:1px">MATERIALS &middot; POWER &middot; INNOVATION</div></div>
-  <div style="text-align:right;font-size:10px;color:#666"><strong>${lo?.name||"florrent, Inc."}</strong><br/>${lo?.address||""}<br/>${[lo?.city,lo?.state,lo?.zip].filter(Boolean).join(", ")}</div>
-</div>
-<h1 style="font-size:18px;color:#1B2A4A;margin:0 0 4px">${type}</h1>
-${type==="ORDER ACKNOWLEDGEMENT"?'<div style="font-size:10px;color:#999;margin-bottom:8px">(NOT AN INVOICE)</div>':""}
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:12px">
-  ${meta.map(([k,v])=>`<div style="background:#f8f8f8;padding:6px 8px;border-radius:3px"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">${k}</div><div style="font-size:12px;font-weight:600">${v}</div></div>`).join("")}
-</div>
-${pa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-  <div style="background:#f8f8f8;padding:8px;border-radius:3px">
-    <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">${cu?"ATTENTION":ve?"VENDOR":""}</div>
-    <strong>${pa.companyName}</strong><br/>
-    ${(pa.contactFirst||"")+" "+(pa.contactLast||"")}<br/>
-    ${pa.billAddr1||pa.hqLocation||""}<br/>
-    <span style="color:#2563EB">${pa.contactEmail||""}</span>
-  </div>
-  ${cu?`<div style="background:#f8f8f8;padding:8px;border-radius:3px">
-    <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">SHIP TO</div>
-    <strong>${cu.companyName}</strong><br/>${cu.shipAddr1||cu.billAddr1||""}
-  </div>`:""}
-</div>`:""}
-<table style="width:100%;border-collapse:collapse;margin:10px 0">
-  <thead><tr>
-    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:left;font-size:11px">Description</th>
-    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Qty</th>
-    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Unit Price (USD)</th>
-    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Extended (USD)</th>
-  </tr></thead>
-  <tbody>${rows}</tbody>
-  <tfoot>
-    <tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL (USD)</td><td style="padding:6px 10px;text-align:right;font-weight:700">${f$(tot)}</td></tr>
-    ${di>0?`<tr><td colspan="3" style="padding:4px 10px;text-align:right">Discount (${(di*100).toFixed(0)}%)</td><td style="padding:4px 10px;text-align:right;color:#dc2626">-${f$(tot*di)}</td></tr>
-    <tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL WITH DISCOUNT</td><td style="padding:6px 10px;text-align:right;font-weight:700;color:#2563EB">${f$(tot*(1-di))}</td></tr>`:""}
-  </tfoot>
-</table>
-${doc.payment?`<p style="margin:5px 0;font-size:12px"><strong>Payment:</strong> ${doc.payment}</p>`:""}
-${doc.shipping?`<p style="margin:5px 0;font-size:12px"><strong>Shipping:</strong> ${doc.shipping}</p>`:""}
-${doc.warranty?`<p style="margin:5px 0;font-size:12px"><strong>Warranty:</strong> ${doc.warranty}</p>`:""}
-${doc.notes?`<p style="margin:5px 0;font-size:12px"><strong>Notes:</strong> ${doc.notes}</p>`:""}
-${type==="PURCHASE ORDER"?`
-<div style="display:flex;justify-content:space-between;margin-top:30px;padding-top:12px;border-top:1px solid #ddd">
-  <div><div style="font-size:9px;color:#999;margin-bottom:22px">APPROVED BY (SIGNATURE / DATE)</div><div style="border-top:1px solid #999;width:220px;padding-top:3px;font-size:9px;color:#999">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div></div>
-  <div><div style="font-size:9px;color:#999;margin-bottom:22px">PRINTED NAME / TITLE</div><div style="border-top:1px solid #999;width:220px;padding-top:3px;font-size:9px;color:#999">Name / Title</div></div>
-</div>`:""}
-${type==="ORDER ACKNOWLEDGEMENT"?`<div style="text-align:center;margin-top:24px;font-style:italic;color:#1B2A4A;font-size:13px">Thank you for your partnership</div>`:""}
-`;
+  const pa=cu||ve;
+  const tot=doc.total||0;
+  const di=Number(doc.discount)||0;
+  const loLine=`florrent, Inc. ${lo?.address||"155 Industrial Drive, Ste. 2"} ${lo?.city||"Northampton"}, ${lo?.state||"MA"} ${lo?.zip||"01060"}`;
+
+  // Row renderer
+  const itemRows=(doc.items||[]).map(i=>`
+    <tr>
+      <td colspan="2" style="padding:5px 8px;border-bottom:1px solid #e5e7eb">${i.desc||i.description||""}</td>
+      <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #e5e7eb">${i.qty}</td>
+      <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #e5e7eb">${f$(i.up||i.unitPrice||0)}</td>
+      <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #e5e7eb">${f$(Number(i.qty)*Number(i.up||i.unitPrice||0))}</td>
+    </tr>`).join("");
+
+  // Shared header
+  const hdrHtml=`
+    <table style="width:100%;border-collapse:collapse;margin-bottom:0">
+      <tr>
+        <td colspan="4" style="text-align:right;font-size:10px;color:#555;padding:0 0 4px 0">${loLine}</td>
+      </tr>
+      <tr>
+        <td colspan="4" style="padding:6px 0 2px 0">
+          <div style="font-size:20px;font-weight:700;color:#1B2A4A;letter-spacing:-0.5px">florrent</div>
+        </td>
+      </tr>
+    </table>`;
+
+  // Shared line items table
+  const lineTableHtml=`
+    <table style="width:100%;border-collapse:collapse;margin:8px 0 4px">
+      <thead>
+        <tr style="background:#1B2A4A;color:#fff">
+          <th colspan="2" style="padding:6px 8px;text-align:left;font-size:11px;font-weight:600">Description</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;font-weight:600;width:60px">Quantity</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;font-weight:600;width:110px">Unit Price (USD)</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;font-weight:600;width:110px">Extended Price (USD)</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+      <tfoot>
+        <tr style="background:#f3f4f6">
+          <td colspan="4" style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">${di>0?"TOTAL PRICE without Discount (USD):":"TOTAL PRICE (USD):"}</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">${f$(tot)}</td>
+        </tr>
+        ${di>0?`
+        <tr>
+          <td colspan="4" style="padding:4px 8px;text-align:right;font-size:11px">Discount:</td>
+          <td style="padding:4px 8px;text-align:right;font-size:11px">${(di*100).toFixed(0)}%</td>
+        </tr>
+        <tr style="background:#f3f4f6">
+          <td colspan="4" style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">TOTAL PRICE with Discount (USD):</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:700;font-size:12px">${f$(tot*(1-di))}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="padding:4px 8px;text-align:right;font-size:11px;color:#555">Savings:</td>
+          <td style="padding:4px 8px;text-align:right;font-size:11px;color:#166534">${f$(tot*di)}</td>
+        </tr>`:""}
+      </tfoot>
+    </table>`;
+
+  // Terms block (shared)
+  const termsHtml=`
+    ${doc.payment?`<p style="margin:6px 0 2px;font-size:11px"><strong>Payment:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444">${doc.payment}</p>`:""}
+    ${doc.shipping?`<p style="margin:6px 0 2px;font-size:11px"><strong>Shipping:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444">${doc.shipping}</p>`:""}
+    ${doc.warranty?`<p style="margin:6px 0 2px;font-size:11px"><strong>Warranty:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444">${doc.warranty}</p>`:""}
+    ${doc.notes?`<p style="margin:6px 0 2px;font-size:11px"><strong>Notes:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444;white-space:pre-wrap">${doc.notes}</p>`:""}`;
+
+  let html="";
+
+  if(type==="SALES QUOTATION"){
+    const attn=pa?`${pa.contactFirst||""} ${pa.contactLast||""}, &nbsp;${pa.companyName} &nbsp;${pa.billAddr1||""} &nbsp;${pa.contactPhone||""} &nbsp;${pa.contactEmail||""}`:"";
+    html=`${hdrHtml}
+    <h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 8px;padding-bottom:4px;border-bottom:2px solid #1B2A4A">SALES QUOTATION</h1>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+      <tr>
+        <td style="width:35%;vertical-align:top;padding:4px 8px 4px 0">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">ATTENTION</div>
+          <div>${attn}</div>
+        </td>
+        <td style="width:30%;vertical-align:top;padding:4px 8px">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">QUOTE NO.</div>
+          <div style="font-weight:600">${doc.number}</div>
+          <div style="margin-top:6px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">DATE ISSUED</div>
+          <div>${doc.date||""}</div>
+          <div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">VALID THROUGH</div>
+          <div>${doc.validThrough||"—"}</div>
+        </td>
+        <td style="width:35%;vertical-align:top;padding:4px 0 4px 8px;text-align:right">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">EST. LEAD TIME</div>
+          <div>${doc.leadTime||"—"}</div>
+        </td>
+      </tr>
+    </table>
+    ${lineTableHtml}${termsHtml}`;
+
+  } else if(type==="PURCHASE ORDER"){
+    const vendorInfo=ve?`${ve.contactFirst||""} ${ve.contactLast||""}, &nbsp;${ve.companyName} &nbsp;${ve.hqLocation||""} &nbsp;${ve.contactPhone||""} &nbsp;${ve.contactEmail||""}`:"";
+    html=`${hdrHtml}
+    <h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 8px;padding-bottom:4px;border-bottom:2px solid #1B2A4A">PURCHASE ORDER</h1>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+      <tr>
+        <td style="width:35%;vertical-align:top;padding:4px 8px 4px 0">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">VENDOR</div>
+          <div>${vendorInfo}</div>
+        </td>
+        <td style="width:30%;vertical-align:top;padding:4px 8px">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">FLORRENT</div>
+          <div>${loLine}</div>
+        </td>
+        <td style="width:35%;vertical-align:top;padding:4px 0 4px 8px;text-align:right">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">PURCHASE ORDER NO.</div>
+          <div style="font-weight:600">${doc.number}</div>
+          <div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">DATE ISSUED</div>
+          <div>${doc.date||""}</div>
+        </td>
+      </tr>
+    </table>
+    ${lineTableHtml}
+    <div style="margin:14px 0 10px;border-top:1px solid #ddd;padding-top:10px">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="width:50%;padding:4px 0">
+            <span style="font-size:11px">Approved By: </span>
+            <span style="display:inline-block;width:220px;border-bottom:1px solid #333">&nbsp;</span>
+          </td>
+          <td style="width:50%;padding:4px 0;text-align:right">
+            <span style="font-size:11px">Date: </span>
+            <span style="display:inline-block;width:140px;border-bottom:1px solid #333">&nbsp;</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0 4px">
+            <span style="font-size:11px">Printed Name: </span>
+            <span style="display:inline-block;width:206px;border-bottom:1px solid #333">&nbsp;</span>
+          </td>
+          <td style="padding:8px 0 4px;text-align:right">
+            <span style="font-size:11px">Title: </span>
+            <span style="display:inline-block;width:156px;border-bottom:1px solid #333">&nbsp;</span>
+          </td>
+        </tr>
+      </table>
+    </div>
+    ${doc.shipping?`<p style="margin:6px 0 2px;font-size:11px"><strong>Shipping:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444">${doc.shipping}</p>`:""}
+    <p style="margin:6px 0 2px;font-size:11px"><strong>Deliver To:</strong></p>
+    <p style="margin:0 0 6px;font-size:11px;color:#444">${loLine}</p>
+    ${doc.notes?`<p style="margin:6px 0 2px;font-size:11px"><strong>Notes:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444;white-space:pre-wrap">${doc.notes}</p>`:""}`;
+
+  } else if(type==="ORDER ACKNOWLEDGEMENT"){
+    const attn=pa?`${pa.contactFirst||""} ${pa.contactLast||""}, &nbsp;${pa.companyName} &nbsp;${pa.billAddr1||""} &nbsp;${pa.contactPhone||""} &nbsp;${pa.contactEmail||""}`:"";
+    html=`${hdrHtml}
+    <h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 2px;padding-bottom:4px;border-bottom:2px solid #1B2A4A">ORDER ACKNOWLEDGEMENT</h1>
+    <div style="font-size:10px;color:#666;margin-bottom:6px;font-style:italic">(Not an Invoice)</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+      <tr>
+        <td style="width:35%;vertical-align:top;padding:4px 8px 4px 0">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">ATTENTION</div>
+          <div>${attn}</div>
+        </td>
+        <td style="width:35%;vertical-align:top;padding:4px 8px">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">ORDER ACKNOWLEDGEMENT NO.</div>
+          <div style="font-weight:600">${doc.number}</div>
+          ${doc.quoteNumber?`<div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">REFERENCE QUOTE NO.</div><div>${doc.quoteNumber}</div>`:""}
+        </td>
+        <td style="width:30%;vertical-align:top;padding:4px 0 4px 8px;text-align:right">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">DATE ISSUED</div>
+          <div>${doc.date||""}</div>
+          <div style="margin-top:6px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">EST. LEAD TIME</div>
+          <div>${doc.leadTime||"—"}</div>
+        </td>
+      </tr>
+    </table>
+    ${lineTableHtml}${termsHtml}
+    <div style="margin-top:20px;text-align:center;font-style:italic;color:#1B2A4A;font-size:13px">Thank you for your partnership</div>`;
+
+  } else if(type==="INVOICE"){
+    const billTo=cu?`${cu.companyName}<br/>${cu.contactFirst||""} ${cu.contactLast||""}<br/>${cu.billAddr1||""}<br/>${cu.contactPhone||""}<br/>${cu.contactEmail||""}`:"";
+    const shipTo=cu?`${cu.companyName}<br/>ATTN: ${cu.contactFirst||""} ${cu.contactLast||""}<br/>${cu.shipAddr1||cu.billAddr1||""}<br/>${cu.contactPhone||""}<br/>${cu.contactEmail||""}`:"";
+    const loc_inv=db.locations.find(l=>l.id===doc.locationId)||db.locations[0];
+    html=`${hdrHtml}
+    <h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 8px;padding-bottom:4px;border-bottom:2px solid #1B2A4A">INVOICE</h1>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+      <tr>
+        <td style="width:28%;vertical-align:top;padding:4px 8px 4px 0">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">BILL TO</div>
+          <div style="line-height:1.5">${billTo}</div>
+        </td>
+        <td style="width:28%;vertical-align:top;padding:4px 8px">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">SHIP TO</div>
+          <div style="line-height:1.5">${shipTo}</div>
+        </td>
+        <td style="width:44%;vertical-align:top;padding:4px 0 4px 8px;text-align:right">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">INVOICE NO.</div>
+          <div style="font-weight:600">${doc.number}</div>
+          ${doc.quoteNumber?`<div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">REFERENCE QUOTE NO.</div><div>${doc.quoteNumber}</div>`:""}
+          ${doc.oaNumber?`<div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">REFERENCE OA NO.</div><div>${doc.oaNumber}</div>`:""}
+          <div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">DATE ISSUED</div>
+          <div>${doc.date||""}</div>
+          <div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">TERMS</div>
+          <div>${doc.terms||"Net 30"}</div>
+        </td>
+      </tr>
+    </table>
+    ${lineTableHtml}
+    ${doc.notes?`<p style="margin:6px 0 2px;font-size:11px"><strong>Notes:</strong></p><p style="margin:0 0 10px;font-size:11px;color:#444;white-space:pre-wrap">${doc.notes}</p>`:""}
+    <p style="margin:8px 0 2px;font-size:11px"><strong>Payment Instructions:</strong></p>
+    <p style="margin:0 0 4px;font-size:11px;color:#444">For payment questions or wire transfer instructions, contact: <strong>ap@florrent.com</strong></p>`;
+
+  } else if(type==="PACKAGING SLIP"){
+    const shipToInfo=cu?`${cu.contactFirst||""} ${cu.contactLast||""}, &nbsp;${cu.companyName} &nbsp;${cu.shipAddr1||cu.billAddr1||""} &nbsp;${cu.contactEmail||""}`:"";
+    const shipFromInfo=loLine;
+    const psRows=(doc.items||[]).map(i=>`
+      <tr>
+        <td colspan="4" style="padding:5px 8px;border-bottom:1px solid #e5e7eb">${i.desc||i.description||""}</td>
+        <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #e5e7eb">${i.qty}</td>
+      </tr>`).join("");
+    html=`${hdrHtml}
+    <h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 8px;padding-bottom:4px;border-bottom:2px solid #1B2A4A">PACKAGING SLIP</h1>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+      <tr>
+        <td style="width:32%;vertical-align:top;padding:4px 8px 4px 0">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">SHIP TO</div>
+          <div>${shipToInfo}</div>
+        </td>
+        <td style="width:32%;vertical-align:top;padding:4px 8px">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">SHIP FROM</div>
+          <div>${shipFromInfo}</div>
+        </td>
+        <td style="width:36%;vertical-align:top;padding:4px 0 4px 8px;text-align:right">
+          <div style="font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px;margin-bottom:2px">PACKAGING SLIP NO.</div>
+          <div style="font-weight:600">${doc.number}</div>
+          ${doc.oaNumber?`<div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">REF. ORDER ACKNOWLEDGEMENT NO.</div><div>${doc.oaNumber}</div>`:""}
+          <div style="margin-top:4px;font-size:9px;font-weight:700;color:#1B2A4A;letter-spacing:.5px">DATE ISSUED</div>
+          <div>${doc.date||""}</div>
+        </td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin:8px 0 4px">
+      <thead>
+        <tr style="background:#1B2A4A;color:#fff">
+          <th colspan="4" style="padding:6px 8px;text-align:left;font-size:11px;font-weight:600">Description</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;font-weight:600;width:80px">Quantity</th>
+        </tr>
+      </thead>
+      <tbody>${psRows}</tbody>
+    </table>
+    ${doc.notes?`<p style="margin:8px 0 2px;font-size:11px"><strong>Notes:</strong></p><p style="margin:0 0 6px;font-size:11px;color:#444;white-space:pre-wrap">${doc.notes}</p>`:""}
+    <div style="margin-top:20px;text-align:center;font-style:italic;color:#1B2A4A;font-size:13px">Thank you for your partnership</div>`;
+  } else {
+    // Fallback generic
+    html=`${hdrHtml}<h1 style="font-size:16px;font-weight:700;color:#1B2A4A;margin:6px 0 8px">${type}</h1>${lineTableHtml}${termsHtml}`;
+  }
+
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${doc.number}</title>
 <style>
   *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:24px;max-width:900px}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:20px 28px;max-width:850px}
+  h1{letter-spacing:-.3px}
   table{width:100%;border-collapse:collapse}
-  @media print{body{padding:12px}@page{margin:15mm}}
+  @media print{body{padding:14px 20px}@page{margin:10mm;size:letter portrait}}
 </style>
 </head><body>${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},400);});<\/script></body></html>`;
-  // Use Blob + object URL — works without popup permissions and on file:// URLs
+
   const blob=new Blob([fullHtml],{type:"text/html"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;
-  a.target="_blank";
-  a.rel="noopener";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.href=url;a.target="_blank";a.rel="noopener";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-
 
 // ── Doc View Modal ──
 function showDocModal(doc,type,extraFn){
@@ -398,7 +611,7 @@ function showDocModal(doc,type,extraFn){
   const docHdr=el("div",{"class":"doc-view-header"});
   const loAddr=el("div",{"class":"doc-addr"});
   loAddr.innerHTML=`<strong style="color:${B}">${lo?.name||"florrent, Inc."}</strong><br/>${lo?.address||""}<br/>${[lo?.city,lo?.state,lo?.zip].filter(Boolean).join(", ")}`;
-  docHdr.append(el("div",{},el("div",{"class":"doc-logo"},"florrent"),el("div",{"class":"doc-tagline"},"MATERIALS · POWER · INNOVATION")),loAddr);
+  docHdr.append(el("div",{},el("div",{"class":"doc-logo"},"florrent"),),loAddr);
   body.appendChild(docHdr);
   body.appendChild(el("div",{"style":{fontSize:"17px",fontWeight:"700",color:B,marginBottom:"2px"}},type));
   if(type==="ORDER ACKNOWLEDGEMENT")body.appendChild(el("div",{"style":{fontSize:"9px",color:"#94a3b8",marginBottom:"8px"}},"(NOT AN INVOICE)"));
@@ -428,8 +641,11 @@ function showDocModal(doc,type,extraFn){
   totalRow.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:B,padding:"7px 10px"}},f$(tot)));
   ltf.appendChild(totalRow);
   if(di>0){
-    const dr=el("tr",{});dr.append(el("td",{"colspan":"3","style":{textAlign:"right",padding:"3px 10px",color:"#64748b"}},`Discount (${(di*100).toFixed(0)}%)`),el("td",{"style":{textAlign:"right",color:"#dc2626",padding:"3px 10px"}},"-"+f$(tot*di)));ltf.appendChild(dr);
-    const dr2=el("tr",{"style":{background:"#eff6ff"}});dr2.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL WITH DISCOUNT (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:A,padding:"7px 10px"}},f$(tot*(1-di))));ltf.appendChild(dr2);
+    // Relabel total row as "without discount"
+    totalRow.querySelector("td:first-child").textContent="TOTAL PRICE without Discount (USD)";
+    const drDi=el("tr",{});drDi.append(el("td",{"colspan":"3","style":{textAlign:"right",padding:"4px 10px",color:"#64748b"}},"Discount:"),el("td",{"style":{textAlign:"right",color:"#64748b",padding:"4px 10px"}},(di*100).toFixed(0)+"%"));ltf.appendChild(drDi);
+    const drNet=el("tr",{"style":{background:"#eff6ff"}});drNet.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL PRICE with Discount (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:A,padding:"7px 10px"}},f$(tot*(1-di))));ltf.appendChild(drNet);
+    const drSav=el("tr",{});drSav.append(el("td",{"colspan":"3","style":{textAlign:"right",padding:"4px 10px",color:"#64748b"}},"Savings:"),el("td",{"style":{textAlign:"right",color:"#166534",padding:"4px 10px"}},f$(tot*di)));ltf.appendChild(drSav);
   }
   lt.appendChild(ltf);body.appendChild(lt);
   if(doc.payment)body.appendChild(el("div",{"style":{marginBottom:"4px",fontSize:"12px"}},el("b",{},"Payment: "),doc.payment));
@@ -516,7 +732,29 @@ function renderDash(){
   dg.appendChild(wc);
   // Inventory
   const ic=el("div",{"class":"card"});ic.appendChild(el("div",{"class":"card-title"},"Inventory — All Warehouses"));
-  db.products.forEach(p=>{const qty=db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${p.id}`]||0),0);const r=el("div",{"class":"list-row"});r.append(el("span",{"class":"mono","style":{fontSize:"11px"}},p.sku),el("span",{"style":{fontWeight:qty>0?600:400,color:qty>0?"#166534":"#94a3b8"}},qty+" on hand"));ic.appendChild(r);});
+  const dashWaitMap={};
+  db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{
+    (po.items||[]).forEach(item=>{
+      if(item.productId) dashWaitMap[item.productId]=(dashWaitMap[item.productId]||0)+Number(item.qty||0);
+    });
+  });
+  // Column headers
+  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"0 12px",padding:"3px 0 6px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
+  ["SKU","On Hand","Waiting","Total"].forEach((h,i)=>icHdr.appendChild(el("span",{"style":{fontSize:"10px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",textAlign:i>0?"right":"left"}},h)));
+  ic.appendChild(icHdr);
+  db.products.forEach(p=>{
+    const onHand=db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${p.id}`]||0),0);
+    const waiting=dashWaitMap[p.id]||0;
+    const total=onHand+waiting;
+    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"0 12px",padding:"4px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
+    r.append(
+      el("span",{"class":"mono","style":{fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.sku),
+      el("span",{"style":{fontSize:"11.5px",fontWeight:onHand>0?600:400,color:onHand>0?"#166534":"#94a3b8",textAlign:"right",minWidth:"32px"}},String(onHand)),
+      el("span",{"style":{fontSize:"11.5px",fontWeight:waiting>0?600:400,color:waiting>0?"#92400e":"#94a3b8",textAlign:"right",minWidth:"32px"}},waiting>0?String(waiting):"—"),
+      el("span",{"style":{fontSize:"11.5px",fontWeight:600,color:total>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"32px"}},String(total))
+    );
+    ic.appendChild(r);
+  });
   dg.appendChild(ic);
   // Open POs
   const pc=el("div",{"class":"card"});pc.appendChild(el("div",{"class":"card-title"},"Open Purchase Orders"));
@@ -573,7 +811,26 @@ function renderInv(){
     const hdr=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}});
     hdr.append(el("div",{},el("div",{"style":{fontSize:"14px",fontWeight:"600",color:B}},wh.name),el("div",{"style":{fontSize:"11.5px",color:"#64748b"}},wh.loc)),btn("Remove","btn btn-dan",()=>{if(confirm("Remove "+wh.name+"?")){db.warehouses=db.warehouses.filter(w=>w.id!==wh.id);log("warehouse.delete",wh.name);render();}}));
     card.appendChild(hdr);
-    card.appendChild(table(["SKU","Product","Qty on Hand"],db.products,p=>{const qty=db.inventory[`${wh.id}::${p.id}`]||0;return[td(el("span",{"class":"mono"},p.sku)),td(p.name),td(String(qty),{fontWeight:qty>0?600:400,color:qty>0?"#166534":"#94a3b8"})];},));
+    (()=>{
+      const waitingMap={};
+      db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{
+        (po.items||[]).forEach(item=>{
+          if(item.productId) waitingMap[item.productId]=(waitingMap[item.productId]||0)+Number(item.qty);
+        });
+      });
+      card.appendChild(table(["SKU","Product","On Hand","Waiting On (Open POs)","Total"],db.products,p=>{
+        const qty=db.inventory[`${wh.id}::${p.id}`]||0;
+        const waiting=waitingMap[p.id]||0;
+        const tot=qty+waiting;
+        return[
+          td(el("span",{"class":"mono"},p.sku)),
+          td(p.name),
+          td(String(qty),{fontWeight:qty>0?600:400,color:qty>0?"#166534":"#94a3b8"}),
+          td(waiting>0?String(waiting):"—",{color:waiting>0?"#92400e":"#94a3b8",fontWeight:waiting>0?600:400,fontSize:"11.5px"}),
+          td(String(tot),{fontWeight:600,color:tot>0?"#1B2A4A":"#94a3b8"})
+        ];
+      }));
+    })();
     wrap.appendChild(card);
   });
   if(!db.warehouses.length)wrap.appendChild(el("div",{"class":"card"},el("div",{"style":{color:"#94a3b8",textAlign:"center",padding:"16px"}},"No warehouses yet")));
@@ -750,7 +1007,7 @@ function renderQuot(){
     td(el("span",{"class":"mono"},q.number)),
     td(db.customers.find(c=>c.id===q.customerId)?.companyName||"—",{fontSize:"11px"}),
     td(q.date,{fontSize:"11px"}),td(q.validThrough||"—",{fontSize:"11px"}),
-    td(f$(q.total),{fontWeight:500}),
+    td(q.discount>0?el("span",{},f$(q.total*(1-q.discount))," ",el("span",{"style":{fontSize:"10px",color:"#166534",fontWeight:600}},`(-${(q.discount*100).toFixed(0)}%)`)):f$(q.total),{fontWeight:500}),
     td(badge(q.status,qC[q.status]||"gr")),
     td(q.createdBy||"",{fontSize:"11px"}),
     tdFlex([
@@ -769,18 +1026,51 @@ function showQuoteModal(){
   const ov=modal("New Sales Quote","lg",close=>{
     const div=el("div",{});
     const g=el("div",{"class":"form-grid-3"});
-    g.append(fg("Quote #",inp("text",f.number,v=>f.number=v)),fg("Date Issued",inp("date",f.date,v=>f.date=v)),fg("Valid Through",inp("date",f.validThrough,v=>f.validThrough=v)),fg("Customer",sel([{v:"",l:"Select customer..."},...db.customers.map(c=>({v:c.id,l:c.companyName}))],f.customerId,v=>f.customerId=v)),fg("From Location",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Est. Lead Time",inp("text",f.leadTime,v=>f.leadTime=v)),fg("Discount (0–1)",inp("number","0",v=>f.discount=v)));
+    g.append(fg("Quote #",inp("text",f.number,v=>f.number=v)),fg("Date Issued",inp("date",f.date,v=>f.date=v)),fg("Valid Through",inp("date",f.validThrough,v=>f.validThrough=v)),fg("Customer",sel([{v:"",l:"Select customer..."},...db.customers.map(c=>({v:c.id,l:c.companyName}))],f.customerId,v=>f.customerId=v)),fg("From Location",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Est. Lead Time",inp("text",f.leadTime,v=>f.leadTime=v)),fg("Discount % (e.g. 25 = 25%)",inp("number","0",v=>{f.discount=v;updateSummary();})));
     div.appendChild(g);
     div.appendChild(secLbl("Line Items"));
-    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v);
+    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>{items=v;updateSummary();},true);
     div.appendChild(liWrap);
     div.appendChild(secLbl("Terms"));
     const tg=el("div",{"class":"form-grid-2"});
     tg.append(fg("Payment Terms",ta(f.payment,v=>f.payment=v)),fg("Shipping",ta(f.shipping,v=>f.shipping=v)),fg("Warranty",ta(f.warranty,v=>f.warranty=v)),fg("Notes",ta(f.notes,v=>f.notes=v)));
     div.appendChild(tg);
+    // ── Live pricing summary ──
+    const summaryBox=el("div",{"style":{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"12px 16px",marginTop:"14px"}});
+    function updateSummary(){
+      const subtotal=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);
+      const discPct=Number(f.discount)||0;
+      const discDec=discPct/100;
+      const discAmt=subtotal*discDec;
+      const finalTotal=subtotal*(1-discDec);
+      summaryBox.innerHTML="";
+      const title=el("div",{"style":{fontSize:"11px",fontWeight:"700",color:"#475569",textTransform:"uppercase",letterSpacing:".6px",marginBottom:"8px"}},"Pricing Summary");
+      summaryBox.appendChild(title);
+      const rows=[];
+      if(discPct>0){
+        rows.push(["Subtotal (before discount)",f$(subtotal),false]);
+        rows.push(["Discount ("+discPct.toFixed(discPct%1===0?0:1)+"%)","− "+f$(discAmt),true,"#dc2626"]);
+        rows.push(["Total with Discount",f$(finalTotal),true,"#166534"]);
+        rows.push(["Savings",f$(discAmt),false,"#166534"]);
+      } else {
+        rows.push(["Total",f$(subtotal),true,"#1B2A4A"]);
+      }
+      rows.forEach(([label,value,bold,color])=>{
+        const row=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"3px 0",borderBottom:"1px solid #f1f5f9"}});
+        row.appendChild(el("span",{"style":{fontSize:"12px",color:"#64748b"}},label));
+        row.appendChild(el("span",{"style":{fontSize:bold?"14px":"12px",fontWeight:bold?700:400,color:color||"#1e293b"}},value));
+        summaryBox.appendChild(row);
+      });
+      if(discPct>0){
+        const note=el("div",{"style":{fontSize:"10.5px",color:"#94a3b8",marginTop:"6px"}},discPct+"% discount applied");
+        summaryBox.appendChild(note);
+      }
+    }
+    updateSummary();
+    div.appendChild(summaryBox);
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Save Quote","btn btn-pri",()=>{
-      f.id=uid();f.items=items;f.total=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);f.discount=Number(f.discount);f.status="draft";f.createdBy=state.user.name;f.createdAt=tod();
+      f.id=uid();f.items=items;f.total=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);f.discount=Number(f.discount)/100;f.status="draft";f.createdBy=state.user.name;f.createdAt=tod();
       db.quotes.push(f);log("quote.create",f.number);close();render();
     }));
     div.appendChild(btns);return div;
@@ -796,7 +1086,7 @@ function convertQuoteToOA(q){
 }
 
 // ── Line Items editor ──
-function renderLineItems(container,items,prods,onChange){
+function renderLineItems(container,items,prods,onChange,isPO){
   container.innerHTML="";
   const dl=document.createElement("datalist");
   dl.id="prodlist_"+Math.random().toString(36).slice(2,6);
@@ -807,10 +1097,8 @@ function renderLineItems(container,items,prods,onChange){
   const thead=el("thead",{});const hr=el("tr",{});
   ["Description","Qty","Unit Price (USD)","Extended",""].forEach(h=>hr.appendChild(el("th",{},h)));
   thead.appendChild(hr);t.appendChild(thead);
-
   const tbody=el("tbody",{});
 
-  // Recompute and update totals without re-rendering
   function refreshTotals(){
     items.forEach((item,i)=>{
       const extCell=tbody.querySelector(`[data-ext="${i}"]`);
@@ -823,69 +1111,84 @@ function renderLineItems(container,items,prods,onChange){
 
   items.forEach((item,idx)=>{
     const r=el("tr",{});
-
-    // Description
-    const descInp=document.createElement("input");
-    descInp.type="text"; descInp.value=item.desc||"";
-    descInp.setAttribute("list",dl.id);
-    descInp.style.cssText="width:100%;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
-    descInp.addEventListener("input",e=>{items[idx].desc=e.target.value;onChange(items);});
-
-    // Qty — update in place, no full re-render
     const qtyInp=document.createElement("input");
-    qtyInp.type="number"; qtyInp.value=item.qty; qtyInp.min="0";
+    qtyInp.type="number";qtyInp.value=item.qty;qtyInp.min="0";
     qtyInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
     qtyInp.addEventListener("input",e=>{items[idx].qty=e.target.value;onChange(items);refreshTotals();});
-
-    // Unit Price — update in place, no full re-render
     const upInp=document.createElement("input");
-    upInp.type="number"; upInp.value=item.up; upInp.min="0";
+    upInp.type="number";upInp.value=item.up;upInp.min="0";
     upInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
     upInp.addEventListener("input",e=>{items[idx].up=e.target.value;onChange(items);refreshTotals();});
-
-    // Delete
-    const delBtn=document.createElement("button");
-    delBtn.textContent="×";
+    const delBtn=document.createElement("button");delBtn.textContent="×";
     delBtn.style.cssText="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;line-height:1;padding:0;font-family:inherit";
-    delBtn.addEventListener("click",()=>{items.splice(idx,1);onChange(items);renderLineItems(container,items,prods,onChange);});
-
-    const ext=f$(Number(item.qty)*Number(item.up));
-    const extTd=el("td",{"style":{textAlign:"right",fontWeight:500,padding:"5px 8px"}},ext);
+    delBtn.addEventListener("click",()=>{items.splice(idx,1);onChange(items);renderLineItems(container,items,prods,onChange,isPO);});
+    const extTd=el("td",{"style":{textAlign:"right",fontWeight:500,padding:"5px 8px"}},f$(Number(item.qty)*Number(item.up)));
     extTd.setAttribute("data-ext",idx);
 
-    r.append(
-      el("td",{"style":{padding:"5px 8px"}},descInp),
-      el("td",{"style":{padding:"5px 8px",width:"60px"}},qtyInp),
-      el("td",{"style":{padding:"5px 8px",width:"100px"}},upInp),
-      extTd,
-      el("td",{"style":{padding:"5px 8px"}},delBtn)
-    );
+    if(item.productId){
+      const prodBadge=el("span",{"style":{fontSize:"10px",fontWeight:700,color:"#2563EB",background:"#dbeafe",padding:"1px 6px",borderRadius:8,marginRight:5,whiteSpace:"nowrap"}},"floMOD");
+      const descCell=el("td",{"style":{padding:"5px 8px",fontSize:"12px"}},prodBadge,item.desc||"");
+      r.append(descCell,el("td",{"style":{padding:"5px 8px",width:"60px"}},qtyInp),el("td",{"style":{padding:"5px 8px",width:"100px"}},upInp),extTd,el("td",{"style":{padding:"5px 8px"}},delBtn));
+    } else {
+      const descInp=document.createElement("input");
+      descInp.type="text";descInp.value=item.desc||"";
+      descInp.setAttribute("list",dl.id);
+      descInp.style.cssText="width:100%;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
+      descInp.addEventListener("input",e=>{items[idx].desc=e.target.value;onChange(items);});
+      r.append(el("td",{"style":{padding:"5px 8px"}},descInp),el("td",{"style":{padding:"5px 8px",width:"60px"}},qtyInp),el("td",{"style":{padding:"5px 8px",width:"100px"}},upInp),extTd,el("td",{"style":{padding:"5px 8px"}},delBtn));
+    }
     tbody.appendChild(r);
   });
 
-  // Grand total row
   const tot=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);
   const totRow=el("tr",{});
   const totTd=el("td",{"style":{textAlign:"right",fontWeight:700,color:"#1B2A4A",padding:"6px 10px"}},f$(tot));
   totTd.setAttribute("data-grand","1");
-  totRow.append(
-    el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:600,padding:"6px 10px"}},"Total:"),
-    totTd,
-    el("td",{})
-  );
+  totRow.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:600,padding:"6px 10px"}},"Total:"),totTd,el("td",{}));
   tbody.appendChild(totRow);
-
   t.appendChild(tbody);
   container.appendChild(t);
 
-  const addBtn=btn("+ Add line","btn btn-out",()=>{
+  const btnRow=el("div",{"style":{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}});
+  btnRow.appendChild(btn("+ Add line","btn btn-out",()=>{
     items.push({id:uid(),desc:"",qty:1,up:0});
     onChange(items);
-    renderLineItems(container,items,prods,onChange);
-  });
-  container.appendChild(addBtn);
+    renderLineItems(container,items,prods,onChange,isPO);
+  }));
+  if(isPO){
+    const prodBtn=btn("+ Add florrent Product","btn btn-out",()=>showProductPickerModal(prods,items,onChange,container,isPO));
+    prodBtn.style.borderColor="#2563EB";
+    prodBtn.style.color="#2563EB";
+    btnRow.appendChild(prodBtn);
+  }
+  container.appendChild(btnRow);
 }
 
+function showProductPickerModal(prods,items,onChange,container,isPO){
+  const ov=modal("Add florrent Product","",close=>{
+    const div=el("div",{});
+    div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"12px"}},"Select a product. It will appear as ‘Waiting On’ in inventory until this PO is received."));
+    if(!prods.length){div.appendChild(el("div",{"style":{color:"#94a3b8",textAlign:"center",padding:"16px"}},"No products defined yet."));return div;}
+    prods.forEach(p=>{
+      const row=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",border:"1px solid #e2e8f0",borderRadius:7,marginBottom:6,background:"#fafbfc",cursor:"pointer"}});
+      row.addEventListener("mouseenter",()=>row.style.background="#eff6ff");
+      row.addEventListener("mouseleave",()=>row.style.background="#fafbfc");
+      const info=el("div",{});
+      info.appendChild(el("div",{"style":{fontFamily:"monospace",fontWeight:600,color:"#2563EB",fontSize:"12px"}},p.sku));
+      info.appendChild(el("div",{"style":{fontSize:"11px",color:"#64748b"}},p.name+" — "+f$(p.lp||0)));
+      const addRowBtn=btn("Add","btn btn-pri",()=>{
+        items.push({id:uid(),productId:p.id,sku:p.sku,desc:p.sku+" — "+p.name,qty:1,up:p.lp||0});
+        onChange(items);
+        renderLineItems(container,items,prods,onChange,isPO);
+        close();
+      });
+      row.append(info,addRowBtn);
+      div.appendChild(row);
+    });
+    return div;
+  });
+  document.body.appendChild(ov);
+}
 
 // ── ORDER ACKS ──
 function renderOA(){
@@ -956,8 +1259,20 @@ function renderPO(){
     td("Every "+po.checkInDays+"d",{fontSize:"11px"}),
     tdFlex([
       btn("View","btn btn-gh",()=>showPODetail(po)),
-      btn("Ship Date","btn btn-gh",()=>showShipDateModal(po)),
-      po.status!=="received"?btn("Received","btn btn-gh",()=>{po.status="received";po.receivedAt=tod();log("po.received",po.number);render();}):null,
+      btn("Update Est. Ship Date","btn btn-gh",()=>showShipDateModal(po)),
+      po.status!=="received"?btn("Received","btn btn-gh",()=>{
+        (po.items||[]).forEach(item=>{
+          if(item.productId){
+            const wh=state.db.warehouses[0];
+            if(wh){
+              const key=wh.id+"::"+item.productId;
+              state.db.inventory[key]=(state.db.inventory[key]||0)+Number(item.qty||1);
+            }
+          }
+        });
+        po.status="received";po.receivedAt=tod();
+        log("po.received",po.number);render();
+      }):null,
     ].filter(Boolean))
   ]));
   wrap.appendChild(card);return wrap;
@@ -973,7 +1288,7 @@ function showPOModal(){
     g.append(fg("PO #",inp("text",f.number,v=>f.number=v)),fg("Date",inp("date",f.date,v=>f.date=v)),fg("Class Code",sel([{v:"DEV",l:"DEV — Devices"},{v:"EQU",l:"EQU — Equipment"},{v:"MAT",l:"MAT — Direct Materials"},{v:"SUP",l:"SUP — Consumable Supplies"},{v:"SER",l:"SER — Services"},{v:"NRE",l:"NRE — Non-recurring Engineering"},{v:"CON",l:"CON — Consultant Hours"}],f.classCode||"DEV",v=>{f.classCode=v;f.number=gn("P",db.purchaseOrders,state.user.name,v);})),fg("Vendor",sel([{v:"",l:"Select vendor..."},...db.vendors.map(v=>({v:v.id,l:v.companyName}))],f.vendorId,v=>f.vendorId=v)),fg("Deliver To",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Check-In (days)",inp("number","21",v=>f.checkInDays=v)),fg("Est. Ship Date",inp("date",f.estShipDate,v=>f.estShipDate=v)));
     div.appendChild(g);
     div.appendChild(secLbl("Line Items"));
-    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v);
+    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v,true);
     div.appendChild(liWrap);
     const tg=el("div",{"class":"form-grid-2","style":{marginTop:"8px"}});
     tg.append(fg("Shipping Method",ta(f.shipping,v=>f.shipping=v)),fg("Notes",ta(f.notes,v=>f.notes=v)));
@@ -989,24 +1304,39 @@ function showPOModal(){
 }
 function showShipDateModal(po){
   let date=po.estShipDate||"";let cad=po.checkInDays||21;
-  const ov=modal("Ship Date — "+po.number,"",close=>{
+  const ov=modal("Update Estimated Ship Date — "+po.number,"",close=>{
     const div=el("div",{});
     div.append(fg("New Est. Ship Date",inp("date",date,v=>date=v)),fg("Check-In Cadence (days)",inp("number",cad,v=>cad=v)));
-    div.appendChild(el("div",{"style":{fontSize:"11px",color:"#64748b",margin:"5px 0"}},"💡 If ship date is slipping, tighten cadence (e.g. 21d → 7d)."));
-    if(po.shipDateHistory&&po.shipDateHistory.length){
-      div.appendChild(el("div",{"style":{fontSize:"10.5px",fontWeight:"700",color:"#475569",marginBottom:"4px",marginTop:"8px"}},"History"));
-      po.shipDateHistory.forEach(h=>{const r=el("div",{"style":{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid #f1f5f9",fontSize:"11px"}});r.append(el("span",{"style":{color:"#64748b"}},h.date+" · "+h.by),el("span",{"style":{fontWeight:500}},h.estShipDate));div.appendChild(r);});
+    div.appendChild(el("div",{"style":{fontSize:"11px",color:"#64748b",margin:"5px 0 10px"}},"💡 If ship date is slipping, tighten check-in cadence (e.g. 21d → 7d)."));
+    // Ship date history — always shown
+    const histSection=el("div",{"style":{marginTop:"10px",paddingTop:"8px",borderTop:"1px solid #e2e8f0"}});
+    histSection.appendChild(el("div",{"style":{fontSize:"11px",fontWeight:"700",color:"#475569",marginBottom:"6px"}},"Estimated Ship Date History"));
+    const hist=po.shipDateHistory||[];
+    if(hist.length===0){
+      histSection.appendChild(el("div",{"style":{color:"#94a3b8",fontSize:"11px",padding:"6px 0"}},"No updates logged yet."));
+    } else {
+      hist.forEach(h=>{
+        const r=el("div",{"style":{display:"flex",justifyContent:"space-between",padding:"5px 8px",borderBottom:"1px solid #f1f5f9",fontSize:"11.5px",background:"#fafbfc",borderRadius:"4px",marginBottom:"3px"}});
+        r.append(
+          el("span",{"style":{color:"#64748b"}},h.date+" · "+h.by),
+          el("span",{"style":{fontWeight:600,color:"#1B2A4A"}},h.estShipDate)
+        );
+        histSection.appendChild(r);
+      });
     }
+    div.appendChild(histSection);
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Save","btn btn-pri",()=>{
       po.estShipDate=date;po.checkInDays=cad;
-      po.shipDateHistory=po.shipDateHistory||[];po.shipDateHistory.push({date:tod(),estShipDate:date,by:state.user.name});
+      po.shipDateHistory=po.shipDateHistory||[];
+      po.shipDateHistory.push({date:tod(),estShipDate:date,by:state.user.name});
       log("po.shipdate",po.number+" → "+date);close();render();
     }));
     div.appendChild(btns);return div;
   });
   document.body.appendChild(ov);
 }
+
 function showPODetail(po){
   showDocModal(po,"PURCHASE ORDER",()=>{
     const div=el("div",{"style":{marginTop:"13px",paddingTop:"9px",borderTop:"1px solid #e2e8f0"}});
@@ -1046,7 +1376,7 @@ function showPackSlipModal(wo){
   const ov=modal("Packaging Slip — "+wo.number,"lg",close=>{
     const div=el("div",{});
     div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"9px"}},"Confirm items for the packaging slip:"));
-    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v);
+    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v,true);
     div.appendChild(liWrap);
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Generate Packaging Slip","btn btn-pri",()=>{
@@ -1054,6 +1384,8 @@ function showPackSlipModal(wo){
       const ps={id:uid(),number:n,date:tod(),workOrderId:wo.id,items,oaNumber:wo.oaNumber||"",customerId:wo.customerId,createdBy:state.user.name};
       db.packagingSlips.push(ps);wo.packagingSlipId=ps.id;wo.packagingSlipNumber=ps.number;
       log("packslip.create",n);close();render();
+      // Open print view
+      setTimeout(()=>printDoc({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP"),300);
     }));
     div.appendChild(btns);return div;
   });
