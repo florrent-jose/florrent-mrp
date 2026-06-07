@@ -44,12 +44,12 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 th{padding:6px 10px;text-align:left;font-weight:600;color:#475569;font-size:11px;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap}
 td{padding:7px 10px;border-bottom:1px solid #f9fafb;vertical-align:middle}
 tr:hover td{background:#f8fafc}
-.form-label{font-size:11px;color:#64748b;font-weight:500;display:block;margin-bottom:3px;margin-top:9px}
+.form-label{font-size:11px;color:#64748b;font-weight:500;display:block;margin-bottom:3px}
 input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:6px 9px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:#1e293b;outline:none}
 input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,select:focus,textarea:focus{border-color:#2563EB}
 textarea{resize:vertical}
-.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px 16px}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
 .modal{background:#fff;border-radius:12px;width:660px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .modal-lg{width:820px}
@@ -135,7 +135,24 @@ const NAV=[
 function uid(){return Math.random().toString(36).slice(2,9);}
 function tod(){return new Date().toISOString().slice(0,10);}
 function f$(n){return "$"+Number(n).toLocaleString("en-US",{maximumFractionDigits:0});}
-function gn(p,l){return `FLR-${p}-${tod().replace(/-/g,"")}-${String(l.length+1).padStart(3,"0")}`;}
+// ── Document naming: AAA-BBB-YYYY-MM-DD-C##X ──
+const USER_CODES = {
+  "Jose":    "012",
+  "Joe":     "044",
+  "Kaitlin": "413",
+  "Alex":    "023",
+  "Ryan":    "010",
+  "Adam":    "203",
+};
+const CLASS_CODES = ["DEV","EQU","MAT","SUP","SER","NRE","CON"];
+
+function gn(docType, list, userName, classCode) {
+  var bbb  = USER_CODES[userName] || "000";
+  var aaa  = classCode || "DEV";
+  var d    = tod(); // YYYY-MM-DD already
+  var seq  = String(list.length + 1).padStart(2,"0") + "A";
+  return aaa + "-" + bbb + "-" + d + "-" + docType + seq;
+}
 function el(tag,attrs,...children){
   const e=document.createElement(tag);
   if(attrs)Object.entries(attrs).forEach(([k,v])=>{
@@ -143,6 +160,7 @@ function el(tag,attrs,...children){
     else if(k==="style"&&typeof v==="object"){Object.assign(e.style,v);}
     else if(k.startsWith("on")&&typeof v==="function"){e.addEventListener(k.slice(2).toLowerCase(),v);}
     else if(k==="html"){e.innerHTML=v;}
+    else if(k==="disabled"){if(v)e.disabled=true;}
     else{e.setAttribute(k,v);}
   });
   children.flat(Infinity).forEach(c=>{
@@ -170,18 +188,22 @@ let state={
 
 function log(action,detail){
   state.db.auditLog.unshift({id:uid(),ts:new Date().toISOString(),user:state.user?.name||"System",action,detail});
+  fbSave();
 }
 
 function render(){
+  if(!appUnlocked){showPasswordScreen();return;}
   const root=document.getElementById("root");
   root.innerHTML="";
   if(!state.user){root.appendChild(renderLogin());return;}
   root.appendChild(renderApp());
+  fbSave();
 }
 
 // ── Primitives ──
 function btn(label,cls,onClick,disabled){
-  const b=el("button",{"class":"btn "+cls,onClick,disabled:disabled||false},label);
+  const b=el("button",{"class":"btn "+cls,onClick},label);
+  if(disabled) b.disabled=true;
   return b;
 }
 function badge(text,color){return el("span",{"class":"badge badge-"+color},text);}
@@ -216,7 +238,7 @@ function ta(value,onChange,rows){
   t.addEventListener("input",e=>onChange(e.target.value));
   return t;
 }
-function fg(label,control){return frag(formLabel(label),control);}
+function fg(label,control){const d=el("div",{});d.appendChild(formLabel(label));d.appendChild(control);return d;}
 function secLbl(text){return el("div",{"class":"section-lbl"},text);}
 function detailCell(k,v){return el("div",{"class":"detail-cell"},el("div",{"class":"detail-lbl"},k),el("div",{"class":"detail-val"},v||"—"));}
 
@@ -285,20 +307,76 @@ function printDoc(doc,type){
   const lo=db.locations.find(l=>l.id===doc.locationId)||db.locations[0];
   const pa=cu||ve;const tot=doc.total||0;const di=Number(doc.discount)||0;
   const rows=(doc.items||[]).map(i=>`<tr><td>${i.desc||i.description||""}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${f$(i.up||i.unitPrice||0)}</td><td style="text-align:right">${f$(Number(i.qty)*Number(i.up||i.unitPrice||0))}</td></tr>`).join("");
-  const meta=[["Doc #",doc.number],["Date",doc.date],doc.leadTime?["Lead Time",doc.leadTime]:null,doc.validThrough?["Valid Through",doc.validThrough]:null,doc.quoteNumber?["Ref Quote",doc.quoteNumber]:null,doc.oaNumber?["Ref OA",doc.oaNumber]:null,doc.terms?["Terms",doc.terms]:null].filter(Boolean);
-  const html=`<div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #1B2A4A"><div><div style="font-size:24px;font-weight:700;color:#1B2A4A">florrent</div><div style="font-size:9px;color:#999;letter-spacing:1px">MATERIALS · POWER · INNOVATION</div></div><div style="text-align:right;font-size:10px;color:#666"><strong>${lo?.name||"florrent, Inc."}</strong><br/>${lo?.address||""}<br/>${[lo?.city,lo?.state,lo?.zip].filter(Boolean).join(", ")}</div></div>
-  <h1 style="font-size:18px;color:#1B2A4A;margin:0 0 4px">${type}</h1>${type==="ORDER ACKNOWLEDGEMENT"?'<div style="font-size:10px;color:#999;margin-bottom:8px">(NOT AN INVOICE)</div>':""}
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:12px">${meta.map(([k,v])=>`<div style="background:#f8f8f8;padding:6px 8px"><div style="font-size:9px;color:#999;text-transform:uppercase">${k}</div><div style="font-size:12px;font-weight:600">${v}</div></div>`).join("")}</div>
-  ${pa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px"><div style="background:#f8f8f8;padding:8px"><div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">${cu?"ATTENTION":ve?"VENDOR":""}</div><strong>${pa.companyName}</strong><br/>${(pa.contactFirst||"")+" "+(pa.contactLast||"")}<br/>${pa.billAddr1||pa.hqLocation||""}<br/><span style="color:#2563EB">${pa.contactEmail||""}</span></div>${cu?`<div style="background:#f8f8f8;padding:8px"><div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">SHIP TO</div><strong>${cu.companyName}</strong><br/>${cu.shipAddr1||cu.billAddr1||""}</div>`:""}</div>`:""}
-  <table style="width:100%;border-collapse:collapse;margin:10px 0"><thead><tr><th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:left;font-size:11px">Description</th><th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Qty</th><th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Unit Price (USD)</th><th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Extended (USD)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL (USD)</td><td style="padding:6px 10px;text-align:right;font-weight:700">${f$(tot)}</td></tr>${di>0?`<tr><td colspan="3" style="padding:4px 10px;text-align:right">Discount (${(di*100).toFixed(0)}%)</td><td style="padding:4px 10px;text-align:right;color:#dc2626">-${f$(tot*di)}</td></tr><tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL WITH DISCOUNT</td><td style="padding:6px 10px;text-align:right;font-weight:700;color:#2563EB">${f$(tot*(1-di))}</td></tr>`:""}</tfoot></table>
-  ${doc.payment?`<p style="margin:4px 0;font-size:12px"><strong>Payment:</strong> ${doc.payment}</p>`:""}${doc.shipping?`<p style="margin:4px 0;font-size:12px"><strong>Shipping:</strong> ${doc.shipping}</p>`:""}${doc.warranty?`<p style="margin:4px 0;font-size:12px"><strong>Warranty:</strong> ${doc.warranty}</p>`:""}${doc.notes?`<p style="margin:4px 0;font-size:12px"><strong>Notes:</strong> ${doc.notes}</p>`:""}
-  ${type==="PURCHASE ORDER"?`<div style="display:flex;justify-content:space-between;margin-top:20px;padding-top:12px;border-top:1px solid #ddd"><div><div style="font-size:9px;color:#999">APPROVED BY (SIGNATURE / DATE)</div><div style="margin-top:22px;border-top:1px solid #999;width:200px;padding-top:3px;font-size:9px;color:#999">Signature · Date</div></div><div><div style="font-size:9px;color:#999">PRINTED NAME / TITLE</div><div style="margin-top:22px;border-top:1px solid #999;width:200px;padding-top:3px;font-size:9px;color:#999">Name · Title</div></div></div>`:""}
-  ${type==="ORDER ACKNOWLEDGEMENT"?`<div style="text-align:center;margin-top:20px;font-style:italic;color:#1B2A4A">Thank you for your partnership</div>`:""}`;
-  const w=window.open("","_blank","width=880,height=700");
-  if(!w){alert("Please allow pop-ups to print.");return;}
-  w.document.write(`<!DOCTYPE html><html><head><title>${doc.number}</title><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:0;padding:20px}@media print{body{padding:8px}}</style></head><body>${html}<script>window.onload=function(){window.print();}<\/script></body></html>`);
-  w.document.close();
+  const meta=[[" Doc #",doc.number],["Date",doc.date],doc.leadTime?["Lead Time",doc.leadTime]:null,doc.validThrough?["Valid Through",doc.validThrough]:null,doc.quoteNumber?["Ref Quote",doc.quoteNumber]:null,doc.oaNumber?["Ref OA",doc.oaNumber]:null,doc.terms?["Terms",doc.terms]:null].filter(Boolean);
+  const html=`
+<div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #1B2A4A">
+  <div><div style="font-size:24px;font-weight:700;color:#1B2A4A">florrent</div><div style="font-size:9px;color:#999;letter-spacing:1px">MATERIALS &middot; POWER &middot; INNOVATION</div></div>
+  <div style="text-align:right;font-size:10px;color:#666"><strong>${lo?.name||"florrent, Inc."}</strong><br/>${lo?.address||""}<br/>${[lo?.city,lo?.state,lo?.zip].filter(Boolean).join(", ")}</div>
+</div>
+<h1 style="font-size:18px;color:#1B2A4A;margin:0 0 4px">${type}</h1>
+${type==="ORDER ACKNOWLEDGEMENT"?'<div style="font-size:10px;color:#999;margin-bottom:8px">(NOT AN INVOICE)</div>':""}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:12px">
+  ${meta.map(([k,v])=>`<div style="background:#f8f8f8;padding:6px 8px;border-radius:3px"><div style="font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">${k}</div><div style="font-size:12px;font-weight:600">${v}</div></div>`).join("")}
+</div>
+${pa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+  <div style="background:#f8f8f8;padding:8px;border-radius:3px">
+    <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">${cu?"ATTENTION":ve?"VENDOR":""}</div>
+    <strong>${pa.companyName}</strong><br/>
+    ${(pa.contactFirst||"")+" "+(pa.contactLast||"")}<br/>
+    ${pa.billAddr1||pa.hqLocation||""}<br/>
+    <span style="color:#2563EB">${pa.contactEmail||""}</span>
+  </div>
+  ${cu?`<div style="background:#f8f8f8;padding:8px;border-radius:3px">
+    <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:3px">SHIP TO</div>
+    <strong>${cu.companyName}</strong><br/>${cu.shipAddr1||cu.billAddr1||""}
+  </div>`:""}
+</div>`:""}
+<table style="width:100%;border-collapse:collapse;margin:10px 0">
+  <thead><tr>
+    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:left;font-size:11px">Description</th>
+    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Qty</th>
+    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Unit Price (USD)</th>
+    <th style="background:#1B2A4A;color:#fff;padding:6px 10px;text-align:right;font-size:11px">Extended (USD)</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot>
+    <tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL (USD)</td><td style="padding:6px 10px;text-align:right;font-weight:700">${f$(tot)}</td></tr>
+    ${di>0?`<tr><td colspan="3" style="padding:4px 10px;text-align:right">Discount (${(di*100).toFixed(0)}%)</td><td style="padding:4px 10px;text-align:right;color:#dc2626">-${f$(tot*di)}</td></tr>
+    <tr style="background:#f0f0f0"><td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700">TOTAL WITH DISCOUNT</td><td style="padding:6px 10px;text-align:right;font-weight:700;color:#2563EB">${f$(tot*(1-di))}</td></tr>`:""}
+  </tfoot>
+</table>
+${doc.payment?`<p style="margin:5px 0;font-size:12px"><strong>Payment:</strong> ${doc.payment}</p>`:""}
+${doc.shipping?`<p style="margin:5px 0;font-size:12px"><strong>Shipping:</strong> ${doc.shipping}</p>`:""}
+${doc.warranty?`<p style="margin:5px 0;font-size:12px"><strong>Warranty:</strong> ${doc.warranty}</p>`:""}
+${doc.notes?`<p style="margin:5px 0;font-size:12px"><strong>Notes:</strong> ${doc.notes}</p>`:""}
+${type==="PURCHASE ORDER"?`
+<div style="display:flex;justify-content:space-between;margin-top:30px;padding-top:12px;border-top:1px solid #ddd">
+  <div><div style="font-size:9px;color:#999;margin-bottom:22px">APPROVED BY (SIGNATURE / DATE)</div><div style="border-top:1px solid #999;width:220px;padding-top:3px;font-size:9px;color:#999">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div></div>
+  <div><div style="font-size:9px;color:#999;margin-bottom:22px">PRINTED NAME / TITLE</div><div style="border-top:1px solid #999;width:220px;padding-top:3px;font-size:9px;color:#999">Name / Title</div></div>
+</div>`:""}
+${type==="ORDER ACKNOWLEDGEMENT"?`<div style="text-align:center;margin-top:24px;font-style:italic;color:#1B2A4A;font-size:13px">Thank you for your partnership</div>`:""}
+`;
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${doc.number}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:0;padding:24px;max-width:900px}
+  table{width:100%;border-collapse:collapse}
+  @media print{body{padding:12px}@page{margin:15mm}}
+</style>
+</head><body>${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},400);});<\/script></body></html>`;
+  // Use Blob + object URL — works without popup permissions and on file:// URLs
+  const blob=new Blob([fullHtml],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.target="_blank";
+  a.rel="noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+
 
 // ── Doc View Modal ──
 function showDocModal(doc,type,extraFn){
@@ -686,7 +764,7 @@ function renderQuot(){
 function showQuoteModal(){
   const db=state.db;
   const defL=db.locations.find(l=>l.isDefault)?.id||db.locations[0]?.id||"";
-  let f={number:gn("Q",db.quotes),date:tod(),validThrough:"",customerId:"",locationId:defL,leadTime:"",payment:"50% with PO, 50% Net 30 for each shipment",shipping:"ExWorks, FOB",warranty:"12 months from shipment",notes:"Order is non-cancellable, non-refundable, and subject to florrent Terms & Conditions\nPOs to be sent to ap@florrent.com",discount:0};
+  let f={number:gn("Q",db.quotes,state.user.name),date:tod(),validThrough:"",customerId:"",locationId:defL,leadTime:"",payment:"50% with PO, 50% Net 30 for each shipment",shipping:"ExWorks, FOB",warranty:"12 months from shipment",notes:"Order is non-cancellable, non-refundable, and subject to florrent Terms & Conditions\nPOs to be sent to ap@florrent.com",discount:0};
   let items=[];
   const ov=modal("New Sales Quote","lg",close=>{
     const div=el("div",{});
@@ -711,7 +789,7 @@ function showQuoteModal(){
 }
 function convertQuoteToOA(q){
   const db=state.db;
-  const on=gn("O",db.orderAcks);const wn=gn("WO",db.workOrders);
+  const on=gn("O",db.orderAcks,state.user.name);const wn=gn("WO",db.workOrders,state.user?state.user.name:"SYS","INT");
   const oa={id:uid(),number:on,date:tod(),customerId:q.customerId,quoteId:q.id,quoteNumber:q.number,locationId:q.locationId,leadTime:q.leadTime,items:q.items,total:q.total,payment:q.payment,shipping:q.shipping,warranty:q.warranty,notes:q.notes,status:"draft",createdBy:state.user.name,createdAt:tod()};
   const wo={id:uid(),number:wn,type:"Create & Send Order Ack",status:"pending",customerId:q.customerId,quoteId:q.id,quoteNumber:q.number,oaNumber:on,assignedTo:q.createdBy,deadline:q.leadTime||"",items:q.items,locationId:q.locationId,createdAt:tod()};
   db.orderAcks.push(oa);db.workOrders.push(wo);q.status="accepted";log("oa.create",on);log("wo.create",wn);render();
@@ -720,35 +798,94 @@ function convertQuoteToOA(q){
 // ── Line Items editor ──
 function renderLineItems(container,items,prods,onChange){
   container.innerHTML="";
+  const dl=document.createElement("datalist");
+  dl.id="prodlist_"+Math.random().toString(36).slice(2,6);
+  prods.forEach(p=>{const o=document.createElement("option");o.value=p.sku+" — "+p.name;dl.appendChild(o);});
+  container.appendChild(dl);
+
   const t=el("table",{"class":"line-items-table"});
   const thead=el("thead",{});const hr=el("tr",{});
   ["Description","Qty","Unit Price (USD)","Extended",""].forEach(h=>hr.appendChild(el("th",{},h)));
   thead.appendChild(hr);t.appendChild(thead);
+
   const tbody=el("tbody",{});
-  const tot=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);
-  const dl=document.createElement("datalist");dl.id="prodlist_"+Math.random().toString(36).slice(2,6);
-  prods.forEach(p=>{const o=document.createElement("option");o.value=p.sku+" — "+p.name;dl.appendChild(o);});
-  container.appendChild(dl);
+
+  // Recompute and update totals without re-rendering
+  function refreshTotals(){
+    items.forEach((item,i)=>{
+      const extCell=tbody.querySelector(`[data-ext="${i}"]`);
+      if(extCell) extCell.textContent=f$(Number(item.qty)*Number(item.up));
+    });
+    const grandCell=t.querySelector("[data-grand]");
+    const tot=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);
+    if(grandCell) grandCell.textContent=f$(tot);
+  }
+
   items.forEach((item,idx)=>{
     const r=el("tr",{});
-    const descInp=document.createElement("input");descInp.type="text";descInp.value=item.desc||"";descInp.setAttribute("list",dl.id);descInp.style.cssText="width:100%;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
+
+    // Description
+    const descInp=document.createElement("input");
+    descInp.type="text"; descInp.value=item.desc||"";
+    descInp.setAttribute("list",dl.id);
+    descInp.style.cssText="width:100%;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
     descInp.addEventListener("input",e=>{items[idx].desc=e.target.value;onChange(items);});
-    const qtyInp=document.createElement("input");qtyInp.type="number";qtyInp.value=item.qty;qtyInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
-    qtyInp.addEventListener("input",e=>{items[idx].qty=e.target.value;onChange(items);renderLineItems(container,items,prods,onChange);});
-    const upInp=document.createElement("input");upInp.type="number";upInp.value=item.up;upInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
-    upInp.addEventListener("input",e=>{items[idx].up=e.target.value;onChange(items);renderLineItems(container,items,prods,onChange);});
-    const delBtn=document.createElement("button");delBtn.textContent="×";delBtn.style.cssText="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;line-height:1;padding:0;font-family:inherit";
+
+    // Qty — update in place, no full re-render
+    const qtyInp=document.createElement("input");
+    qtyInp.type="number"; qtyInp.value=item.qty; qtyInp.min="0";
+    qtyInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
+    qtyInp.addEventListener("input",e=>{items[idx].qty=e.target.value;onChange(items);refreshTotals();});
+
+    // Unit Price — update in place, no full re-render
+    const upInp=document.createElement("input");
+    upInp.type="number"; upInp.value=item.up; upInp.min="0";
+    upInp.style.cssText="width:100%;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
+    upInp.addEventListener("input",e=>{items[idx].up=e.target.value;onChange(items);refreshTotals();});
+
+    // Delete
+    const delBtn=document.createElement("button");
+    delBtn.textContent="×";
+    delBtn.style.cssText="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;line-height:1;padding:0;font-family:inherit";
     delBtn.addEventListener("click",()=>{items.splice(idx,1);onChange(items);renderLineItems(container,items,prods,onChange);});
+
     const ext=f$(Number(item.qty)*Number(item.up));
-    r.append(el("td",{"style":{padding:"5px 8px"}},descInp),el("td",{"style":{padding:"5px 8px",width:"60px"}},qtyInp),el("td",{"style":{padding:"5px 8px",width:"100px"}},upInp),el("td",{"style":{padding:"5px 8px",textAlign:"right",fontWeight:500}},ext),el("td",{"style":{padding:"5px 8px"}},delBtn));
+    const extTd=el("td",{"style":{textAlign:"right",fontWeight:500,padding:"5px 8px"}},ext);
+    extTd.setAttribute("data-ext",idx);
+
+    r.append(
+      el("td",{"style":{padding:"5px 8px"}},descInp),
+      el("td",{"style":{padding:"5px 8px",width:"60px"}},qtyInp),
+      el("td",{"style":{padding:"5px 8px",width:"100px"}},upInp),
+      extTd,
+      el("td",{"style":{padding:"5px 8px"}},delBtn)
+    );
     tbody.appendChild(r);
   });
-  const totRow=el("tr",{});totRow.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:600,padding:"6px 10px"}},"Total:"),el("td",{"class":"line-items-total"},f$(tot)),el("td",{}));
+
+  // Grand total row
+  const tot=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);
+  const totRow=el("tr",{});
+  const totTd=el("td",{"style":{textAlign:"right",fontWeight:700,color:"#1B2A4A",padding:"6px 10px"}},f$(tot));
+  totTd.setAttribute("data-grand","1");
+  totRow.append(
+    el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:600,padding:"6px 10px"}},"Total:"),
+    totTd,
+    el("td",{})
+  );
   tbody.appendChild(totRow);
-  t.appendChild(tbody);container.appendChild(t);
-  const addBtn=btn("+ Add line","btn btn-out",()=>{items.push({id:uid(),desc:"",qty:1,up:0});onChange(items);renderLineItems(container,items,prods,onChange);});
+
+  t.appendChild(tbody);
+  container.appendChild(t);
+
+  const addBtn=btn("+ Add line","btn btn-out",()=>{
+    items.push({id:uid(),desc:"",qty:1,up:0});
+    onChange(items);
+    renderLineItems(container,items,prods,onChange);
+  });
   container.appendChild(addBtn);
 }
+
 
 // ── ORDER ACKS ──
 function renderOA(){
@@ -766,8 +903,8 @@ function renderOA(){
     tdFlex([
       btn("View","btn btn-gh",()=>showDocModal(oa,"ORDER ACKNOWLEDGEMENT")),
       btn("Lead Time","btn btn-gh",()=>showLeadTimeModal(oa)),
-      btn("→ Ship WO","btn btn-gh",()=>{const n=gn("WO",db.workOrders);db.workOrders.push({id:uid(),number:n,type:"Package & Ship",status:"shipping",customerId:oa.customerId,oaId:oa.id,oaNumber:oa.number,locationId:oa.locationId,assignedTo:state.user.name,deadline:oa.leadTime||"",items:oa.items,createdAt:tod()});log("wo.ship.create",n);render();}),
-      btn("→ Invoice","btn btn-gh",()=>{const n=gn("V",db.invoices);db.invoices.push({id:uid(),number:n,date:tod(),customerId:oa.customerId,oaId:oa.id,oaNumber:oa.number,quoteNumber:oa.quoteNumber||"",locationId:oa.locationId,items:oa.items,total:oa.total,payment:oa.payment,notes:"",paymentStatus:"unpaid",terms:"Net 30",status:"draft",createdBy:state.user.name,createdAt:tod()});log("invoice.create",n);render();})
+      btn("→ Ship WO","btn btn-gh",()=>{const n=gn("WO",db.workOrders,state.user?state.user.name:"SYS","INT");db.workOrders.push({id:uid(),number:n,type:"Package & Ship",status:"shipping",customerId:oa.customerId,oaId:oa.id,oaNumber:oa.number,locationId:oa.locationId,assignedTo:state.user.name,deadline:oa.leadTime||"",items:oa.items,createdAt:tod()});log("wo.ship.create",n);render();}),
+      btn("→ Invoice","btn btn-gh",()=>{const n=gn("V",db.invoices,state.user.name);db.invoices.push({id:uid(),number:n,date:tod(),customerId:oa.customerId,oaId:oa.id,oaNumber:oa.number,quoteNumber:oa.quoteNumber||"",locationId:oa.locationId,items:oa.items,total:oa.total,payment:oa.payment,notes:"",paymentStatus:"unpaid",terms:"Net 30",status:"draft",createdBy:state.user.name,createdAt:tod()});log("invoice.create",n);render();})
     ])
   ]));
   wrap.appendChild(card);return wrap;
@@ -828,12 +965,12 @@ function renderPO(){
 function showPOModal(){
   const db=state.db;
   const defL=db.locations.find(l=>l.isDefault)?.id||db.locations[0]?.id||"";
-  let f={number:gn("P",db.purchaseOrders),date:tod(),vendorId:"",locationId:defL,shipping:"",notes:"Email all invoices to: jhastry@florrent.com",checkInDays:21,estShipDate:""};
+  let f={number:gn("P",db.purchaseOrders,state.user.name,"DEV"),classCode:"DEV",date:tod(),vendorId:"",locationId:defL,shipping:"",notes:"Email all invoices to: jhastry@florrent.com",checkInDays:21,estShipDate:""};
   let items=[];
   const ov=modal("New Purchase Order","lg",close=>{
     const div=el("div",{});
     const g=el("div",{"class":"form-grid-3"});
-    g.append(fg("PO #",inp("text",f.number,v=>f.number=v)),fg("Date",inp("date",f.date,v=>f.date=v)),fg("Vendor",sel([{v:"",l:"Select vendor..."},...db.vendors.map(v=>({v:v.id,l:v.companyName}))],f.vendorId,v=>f.vendorId=v)),fg("Deliver To",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Check-In (days)",inp("number","21",v=>f.checkInDays=v)),fg("Est. Ship Date",inp("date",f.estShipDate,v=>f.estShipDate=v)));
+    g.append(fg("PO #",inp("text",f.number,v=>f.number=v)),fg("Date",inp("date",f.date,v=>f.date=v)),fg("Class Code",sel([{v:"DEV",l:"DEV — Devices"},{v:"EQU",l:"EQU — Equipment"},{v:"MAT",l:"MAT — Direct Materials"},{v:"SUP",l:"SUP — Consumable Supplies"},{v:"SER",l:"SER — Services"},{v:"NRE",l:"NRE — Non-recurring Engineering"},{v:"CON",l:"CON — Consultant Hours"}],f.classCode||"DEV",v=>{f.classCode=v;f.number=gn("P",db.purchaseOrders,state.user.name,v);})),fg("Vendor",sel([{v:"",l:"Select vendor..."},...db.vendors.map(v=>({v:v.id,l:v.companyName}))],f.vendorId,v=>f.vendorId=v)),fg("Deliver To",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Check-In (days)",inp("number","21",v=>f.checkInDays=v)),fg("Est. Ship Date",inp("date",f.estShipDate,v=>f.estShipDate=v)));
     div.appendChild(g);
     div.appendChild(secLbl("Line Items"));
     const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v);
@@ -913,7 +1050,7 @@ function showPackSlipModal(wo){
     div.appendChild(liWrap);
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Generate Packaging Slip","btn btn-pri",()=>{
-      const n=gn("S",db.packagingSlips);
+      const n=gn("S",db.packagingSlips,state.user.name);
       const ps={id:uid(),number:n,date:tod(),workOrderId:wo.id,items,oaNumber:wo.oaNumber||"",customerId:wo.customerId,createdBy:state.user.name};
       db.packagingSlips.push(ps);wo.packagingSlipId=ps.id;wo.packagingSlipNumber=ps.number;
       log("packslip.create",n);close();render();
@@ -988,121 +1125,64 @@ function renderAud(){
 }
 
 // ── BOOT ──
-// Password + Firebase boot (defined below)
-</script>
 
-<script type="module">
-// ══════════════════════════════════════════
-// FIREBASE — replace placeholder values with
-// your real config from Firebase Console
-// ══════════════════════════════════════════
-import { initializeApp }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// ════════════════════════════════════════════════
+// PASSWORD + FIREBASE — injected after app code
+// ════════════════════════════════════════════════
 
-const firebaseConfig = {
-  apiKey:            "AIzaSyCTUIx99W5GliiHdJaZp6_5RFt4OGwth4U",
-  authDomain:        "florrent-mrp.firebaseapp.com",
-  projectId:         "florrent-mrp",
-  storageBucket:     "florrent-mrp.firebasestorage.app",
-  messagingSenderId: "885864178587",
-  appId:             "1:885864178587:web:86d0cdd3c366355e4cb73e"
-};
-
-try {
-  const fbApp = initializeApp(firebaseConfig);
-  const fdb   = getFirestore(fbApp);
-  const MRP   = doc(fdb, "mrp", "shared");
-
-  window.__fbLoad = async function() {
-    const snap = await getDoc(MRP);
-    if (snap.exists()) return JSON.parse(snap.data().payload);
-    return null;
-  };
-
-  window.__fbSave = async function(dbState) {
-    try {
-      await setDoc(MRP, {
-        payload: JSON.stringify(dbState),
-        updatedAt: new Date().toISOString()
-      });
-    } catch(e) { console.warn("Firestore save error:", e); }
-  };
-
-  window.__fbListen = function(cb) {
-    return onSnapshot(MRP, snap => {
-      if (snap.exists()) {
-        try { cb(JSON.parse(snap.data().payload)); } catch(e) {}
-      }
-    });
-  };
-} catch(e) {
-  console.warn("Firebase init failed (config not set yet):", e.message);
-}
-
-// Signal main script
-window.dispatchEvent(new Event('fb-ready'));
-</script>
-
-<script>
-// ══════════════════════════════════════════
-// PASSWORD GATE + BOOT
-// ══════════════════════════════════════════
 const PW_HASH = "7648691c81e4de169762f3bd860b246364e9b819e2e767ee9e1b60c2275a7319";
 let appUnlocked = (sessionStorage.getItem('mrp_unlocked') === '1');
-let _lastSave   = 0;
-let _saveTimer  = null;
+let _fbSaveTimer = null;
+let _lastSaveAt  = 0;
 
-// ── SHA-256 (Web Crypto) ──
-async function sha256(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+// ── Firebase save (debounced, safe — no-ops if not configured) ──
+function fbSave() {
+  clearTimeout(_fbSaveTimer);
+  _fbSaveTimer = setTimeout(function() {
+    if (typeof window.__fbSave !== 'function') return;
+    _lastSaveAt = Date.now();
+    try {
+      var clean = JSON.parse(JSON.stringify(state.db, function(k, v) {
+        if (k === 'data' && typeof v === 'string' && v.startsWith('data:')) return '[local-file]';
+        return v;
+      }));
+      window.__fbSave(clean).catch(function(e){ console.warn('fbSave error:', e); });
+    } catch(e) { console.warn('fbSave serialization error:', e); }
+  }, 1200);
 }
 
-// ── Debounced Firestore save (strips binary blobs) ──
-function saveToFirebase() {
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(function() {
-    if (!window.__fbSave) return;
-    _lastSave = Date.now();
-    const clean = JSON.parse(JSON.stringify(state.db, function(k, v) {
-      if (k === 'data' && typeof v === 'string' && v.startsWith('data:')) return '[local-file]';
-      return v;
-    }));
-    window.__fbSave(clean);
-  }, 1200);
+// ── SHA-256 ──
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
 }
 
 // ── Password screen ──
 function showPasswordScreen() {
-  const root = document.getElementById('root');
-  root.innerHTML = '';
-
+  var root = document.getElementById('root');
   root.style.cssText = 'min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1B2A4A';
+  root.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:34px;width:320px;font-family:system-ui,sans-serif">' +
+      '<div style="font-size:26px;font-weight:700;color:#1B2A4A;letter-spacing:-1px;margin-bottom:4px">florrent</div>' +
+      '<div style="font-size:10px;color:#94a3b8;letter-spacing:1.2px;margin-bottom:20px">MRP SYSTEM</div>' +
+      '<div style="font-size:17px;font-weight:600;color:#1B2A4A;margin-bottom:6px">Enter password</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:14px">This system is password protected.</div>' +
+      '<input id="pw" type="password" placeholder="Password" ' +
+        'style="width:100%;margin-bottom:10px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;' +
+        'font-size:13px;font-family:inherit;outline:none;box-sizing:border-box"/>' +
+      '<div id="pw-err" style="font-size:12px;color:#dc2626;margin-bottom:8px;display:none">Incorrect password. Try again.</div>' +
+      '<button id="pw-btn" style="width:100%;padding:10px;background:#2563EB;color:#fff;border:none;' +
+        'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Unlock</button>' +
+    '</div>';
 
-  const box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:16px;padding:34px;width:320px;font-family:system-ui,sans-serif';
-  box.innerHTML =
-    '<div style="font-size:26px;font-weight:700;color:#1B2A4A;letter-spacing:-1px;margin-bottom:4px">florrent</div>' +
-    '<div style="font-size:10px;color:#94a3b8;letter-spacing:1.2px;margin-bottom:20px">MRP SYSTEM</div>' +
-    '<div style="font-size:17px;font-weight:600;color:#1B2A4A;margin-bottom:4px">Enter password</div>' +
-    '<div style="font-size:12px;color:#64748b;margin-bottom:16px">This system is password protected.</div>' +
-    '<input id="pw" type="password" placeholder="Password" ' +
-      'style="width:100%;margin-bottom:10px;padding:9px 11px;border:1px solid #cbd5e1;' +
-      'border-radius:8px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box"/>' +
-    '<div id="pw-err" style="font-size:12px;color:#dc2626;margin-bottom:8px;display:none">Incorrect password.</div>' +
-    '<button id="pw-btn" style="width:100%;padding:10px;background:#2563EB;color:#fff;border:none;' +
-      'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Unlock</button>';
-
-  root.appendChild(box);
-
-  const pwEl  = document.getElementById('pw');
-  const errEl = document.getElementById('pw-err');
-  const btnEl = document.getElementById('pw-btn');
+  var pwEl  = document.getElementById('pw');
+  var errEl = document.getElementById('pw-err');
+  var btnEl = document.getElementById('pw-btn');
 
   async function tryUnlock() {
-    const h = await sha256(pwEl.value);
+    btnEl.disabled = true;
+    btnEl.textContent = 'Checking…';
+    var h = await sha256(pwEl.value);
     if (h === PW_HASH) {
       sessionStorage.setItem('mrp_unlocked', '1');
       appUnlocked = true;
@@ -1111,41 +1191,41 @@ function showPasswordScreen() {
     } else {
       errEl.style.display = 'block';
       pwEl.value = '';
+      btnEl.disabled = false;
+      btnEl.textContent = 'Unlock';
       pwEl.focus();
     }
   }
 
   btnEl.addEventListener('click', tryUnlock);
-  pwEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryUnlock(); });
-  setTimeout(function() { pwEl.focus(); }, 50);
+  pwEl.addEventListener('keydown', function(e){ if(e.key === 'Enter') tryUnlock(); });
+  setTimeout(function(){ pwEl.focus(); }, 50);
 }
 
-// ── Load remote data and start the app ──
+// ── Load remote data then start app ──
 async function bootApp() {
-  // Show spinner
-  const root = document.getElementById('root');
+  var root = document.getElementById('root');
+  root.style.cssText = '';
   root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;' +
     'background:#f0f4f8;font-family:system-ui,sans-serif;color:#64748b;font-size:14px">Loading…</div>';
 
-  // Pull from Firebase if available
-  if (window.__fbLoad) {
+  if (typeof window.__fbLoad === 'function') {
     try {
-      const remote = await window.__fbLoad();
+      var remote = await window.__fbLoad();
       if (remote) {
         var keys = ['products','vendors','customers','warehouses','quotes','orderAcks',
                     'invoices','purchaseOrders','workOrders','packagingSlips','locations','auditLog'];
-        keys.forEach(function(k) { if (Array.isArray(remote[k])) state.db[k] = remote[k]; });
+        keys.forEach(function(k){ if(Array.isArray(remote[k])) state.db[k] = remote[k]; });
         if (remote.inventory && typeof remote.inventory === 'object') state.db.inventory = remote.inventory;
       }
-    } catch(e) { console.warn('Firebase load error:', e); }
+    } catch(e) { console.warn('Firebase load error (continuing offline):', e); }
 
-    // Live updates from other users
-    if (window.__fbListen) {
+    if (typeof window.__fbListen === 'function') {
       window.__fbListen(function(remoteDb) {
-        if (Date.now() - _lastSave < 3000) return;
+        if (Date.now() - _lastSaveAt < 3000) return;
         var keys = ['products','vendors','customers','warehouses','quotes','orderAcks',
                     'invoices','purchaseOrders','workOrders','packagingSlips','locations','auditLog'];
-        keys.forEach(function(k) { if (Array.isArray(remoteDb[k])) state.db[k] = remoteDb[k]; });
+        keys.forEach(function(k){ if(Array.isArray(remoteDb[k])) state.db[k] = remoteDb[k]; });
         if (remoteDb.inventory && typeof remoteDb.inventory === 'object') state.db.inventory = remoteDb.inventory;
         render();
       });
@@ -1155,43 +1235,47 @@ async function bootApp() {
   render();
 }
 
-// ── Patch render() and log() after they are defined ──
-// We use a DOMContentLoaded-style trick: by the time this <script> runs,
-// the previous <script> block has already defined render and log as plain functions.
-// We capture and replace them on the window object isn't needed — we just call
-// them by name. Instead, we shadow them here:
-
-var _coreRender = render;   // capture original
-var _coreLog    = log;      // capture original
-
-// Override render globally
-render = function() {
-  if (!appUnlocked) { showPasswordScreen(); return; }
-  _coreRender();
-  saveToFirebase();
-};
-
-// Override log globally
-log = function(action, detail) {
-  _coreLog(action, detail);
-  saveToFirebase();
-};
-
-// ── Start ──
+// ── Kick off ──
 if (!appUnlocked) {
   showPasswordScreen();
 } else {
-  // If Firebase module already fired, boot immediately; otherwise wait briefly
+  // Already unlocked (sessionStorage) — boot when Firebase is ready or after 2s
   var _booted = false;
-  function _tryBoot() {
-    if (_booted) return;
-    _booted = true;
-    bootApp();
-  }
+  function _tryBoot() { if (!_booted) { _booted = true; bootApp(); } }
   window.addEventListener('fb-ready', _tryBoot);
-  // Boot anyway after 2s even if Firebase module hasn't loaded
   setTimeout(_tryBoot, 2000);
 }
+
+</script>
+
+<script type="module">
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── PASTE YOUR FIREBASE CONFIG HERE ──
+const firebaseConfig = {
+  apiKey: "AIzaSyCTUIx99W5GliiHdJaZp6_5RFt4OGwth4U",
+  authDomain: "florrent-mrp.firebaseapp.com",
+  projectId: "florrent-mrp",
+  storageBucket: "florrent-mrp.firebasestorage.app",
+  messagingSenderId: "885864178587",
+  appId: "1:885864178587:web:86d0cdd3c366355e4cb73e"
+};
+
+try {
+  if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE')) {
+    const fbApp = initializeApp(firebaseConfig);
+    const fdb   = getFirestore(fbApp);
+    const MRP   = doc(fdb, "mrp", "shared");
+    window.__fbLoad   = () => getDoc(MRP).then(s => s.exists() ? JSON.parse(s.data().payload) : null);
+    window.__fbSave   = db  => setDoc(MRP, { payload: JSON.stringify(db), updatedAt: new Date().toISOString() });
+    window.__fbListen = cb  => onSnapshot(MRP, s => { try { if(s.exists()) cb(JSON.parse(s.data().payload)); } catch(e){} });
+  }
+} catch(e) { console.warn('Firebase init error:', e.message); }
+
+window.dispatchEvent(new Event('fb-ready'));
 </script>
 </body>
 </html>
