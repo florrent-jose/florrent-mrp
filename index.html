@@ -654,18 +654,33 @@ function renderDash(){
   const ic=el("div",{"class":"card"});ic.appendChild(el("div",{"class":"card-title"},"Inventory — All Warehouses"));
   const dashWaitMap={};
   db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)dashWaitMap[item.productId]=(dashWaitMap[item.productId]||0)+Number(item.qty||0);});});
-  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"0 12px",padding:"3px 0 6px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
-  ["SKU","On Hand","Waiting","Total"].forEach((h,i)=>icHdr.appendChild(el("span",{"style":{fontSize:"10px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px",textAlign:i>0?"right":"left"}},h)));
+  const dashQuotedMap={};
+  db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{(q.items||[]).forEach(item=>{if(item.productId)dashQuotedMap[item.productId]=(dashQuotedMap[item.productId]||0)+Number(item.qty||0);});});
+  const dashRcvdMap={};
+  db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)dashRcvdMap[item.productId]=(dashRcvdMap[item.productId]||0)+Number(item.qty||0);});});
+  // Header
+  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr repeat(6,auto)",gap:"0 10px",padding:"3px 0 5px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
+  ["SKU","On Hand","Waiting","OH+W","Quoted","PO Rcvd","Total"].forEach((h,i)=>{
+    icHdr.appendChild(el("span",{"style":{fontSize:"9.5px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".4px",textAlign:i>0?"right":"left",whiteSpace:"nowrap"}},h));
+  });
   ic.appendChild(icHdr);
   db.products.forEach(p=>{
     const onHand=db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${p.id}`]||0),0);
-    const waiting=dashWaitMap[p.id]||0;const total=onHand+waiting;
-    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"0 12px",padding:"4px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
+    const waiting=dashWaitMap[p.id]||0;
+    const onHandWaiting=onHand+waiting;
+    const quoted=dashQuotedMap[p.id]||0;
+    const poRcvd=dashRcvdMap[p.id]||0;
+    const total=onHandWaiting-quoted;
+    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr repeat(6,auto)",gap:"0 10px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
+    function dv(v,color){return el("span",{"style":{fontSize:"11px",fontWeight:v>0?600:400,color:v>0?(color||"#1B2A4A"):"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},v===0?"—":String(v));}
     r.append(
-      el("span",{"class":"mono","style":{fontSize:"11px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.sku),
-      el("span",{"style":{fontSize:"11.5px",fontWeight:onHand>0?600:400,color:onHand>0?"#166534":"#94a3b8",textAlign:"right",minWidth:"32px"}},String(onHand)),
-      el("span",{"style":{fontSize:"11.5px",fontWeight:waiting>0?600:400,color:waiting>0?"#92400e":"#94a3b8",textAlign:"right",minWidth:"32px"}},waiting>0?String(waiting):"—"),
-      el("span",{"style":{fontSize:"11.5px",fontWeight:600,color:total>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"32px"}},String(total))
+      el("span",{"class":"mono","style":{fontSize:"10.5px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.sku),
+      dv(onHand,"#166534"),
+      dv(waiting,"#92400e"),
+      el("span",{"style":{fontSize:"11px",fontWeight:onHandWaiting>0?600:400,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},onHandWaiting===0?"—":String(onHandWaiting)),
+      dv(quoted,"#2563EB"),
+      dv(poRcvd,"#166534"),
+      el("span",{"style":{fontSize:"11px",fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},String(total))
     );
     ic.appendChild(r);
   });
@@ -726,22 +741,43 @@ function renderInv(){
     hdr.append(el("div",{},el("div",{"style":{fontSize:"14px",fontWeight:"600",color:B}},wh.name),el("div",{"style":{fontSize:"11.5px",color:"#64748b"}},wh.loc)),btn("Remove","btn btn-dan",()=>confirmModal("Remove warehouse \""+wh.name+"\"?",()=>{db.warehouses=db.warehouses.filter(w=>w.id!==wh.id);log("warehouse.delete",wh.name);render();})));
     card.appendChild(hdr);
     (()=>{
+      // Waiting On: open POs
       const waitingMap={};
       db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{
         (po.items||[]).forEach(item=>{if(item.productId)waitingMap[item.productId]=(waitingMap[item.productId]||0)+Number(item.qty||0);});
       });
-      card.appendChild(table(["SKU","Product","On Hand","Waiting On (Open POs)","Total"],db.products,p=>{
-        const qty=db.inventory[`${wh.id}::${p.id}`]||0;
-        const w=waitingMap[p.id]||0;
-        const tot=qty+w;
-        return[
-          td(el("span",{"class":"mono"},p.sku)),
-          td(p.name),
-          td(String(qty),{fontWeight:qty>0?600:400,color:qty>0?"#166534":"#94a3b8"}),
-          td(w>0?String(w):"—",{color:w>0?"#92400e":"#94a3b8",fontWeight:w>0?600:400,fontSize:"11.5px"}),
-          td(String(tot),{fontWeight:600,color:tot>0?"#1B2A4A":"#94a3b8"})
-        ];
-      }));
+      // Quoted: qty in non-expired quotes (draft/sent/accepted)
+      const quotedMap={};
+      db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{
+        (q.items||[]).forEach(item=>{if(item.productId)quotedMap[item.productId]=(quotedMap[item.productId]||0)+Number(item.qty||0);});
+      });
+      // PO Received: cumulative qty from received POs
+      const receivedMap={};
+      db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{
+        (po.items||[]).forEach(item=>{if(item.productId)receivedMap[item.productId]=(receivedMap[item.productId]||0)+Number(item.qty||0);});
+      });
+      card.appendChild(table(
+        ["SKU","Product","On Hand","Waiting On","On Hand + Waiting","Quoted","PO Received","Total (On Hand + Waiting − Quoted)"],
+        db.products,p=>{
+          const onHand=db.inventory[`${wh.id}::${p.id}`]||0;
+          const waiting=waitingMap[p.id]||0;
+          const onHandWaiting=onHand+waiting;
+          const quoted=quotedMap[p.id]||0;
+          const poRcvd=receivedMap[p.id]||0;
+          const total=onHandWaiting-quoted;
+          function numTd(v,color){return td(v===0?"—":String(v),{color:v>0?(color||"#1B2A4A"):"#94a3b8",fontWeight:v>0?600:400,textAlign:"right",fontSize:"11.5px"});}
+          return[
+            td(el("span",{"class":"mono"},p.sku)),
+            td(p.name),
+            numTd(onHand,"#166534"),
+            numTd(waiting,"#92400e"),
+            td(String(onHandWaiting),{fontWeight:600,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
+            numTd(quoted,"#2563EB"),
+            numTd(poRcvd,"#166534"),
+            td(String(total),{fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
+          ];
+        }
+      ));
     })();
     wrap.appendChild(card);
   });
@@ -1542,6 +1578,7 @@ const firebaseConfig = {
   storageBucket: "florrent-mrp.firebasestorage.app",
   messagingSenderId: "885864178587",
   appId: "1:885864178587:web:86d0cdd3c366355e4cb73e"
+};
 
 try {
   if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE')) {
