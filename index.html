@@ -673,7 +673,7 @@ function renderDash(){
     const onHandWaiting=onHand+waiting;
     const quoted=dashQuotedMap[p.id]||0;
     const poRcvd=dashRcvdMap[p.id]||0;
-    const total=onHandWaiting-quoted;
+    const total=onHandWaiting-poRcvd;
     const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 44px 44px 50px",gap:"0 6px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
     function dv(v,color){return el("span",{"style":{fontSize:"11px",fontWeight:v>0?600:400,color:v>0?(color||"#1B2A4A"):"#94a3b8",textAlign:"right",minWidth:"44px",display:"block",textAlign:"right"}},v===0?"—":String(v));}
     r.append(
@@ -764,7 +764,7 @@ function renderInv(){
         const ohw=onHand+waiting;
         const quoted=quotedMap[p.id]||0;
         const poRcvd=receivedMap[p.id]||0;
-        const total=ohw-quoted;
+        const total=ohw-poRcvd;
         return[
           td(el("span",{"class":"mono"},p.sku)),
           td(p.name),
