@@ -657,13 +657,11 @@ function renderDash(){
   const ic=el("div",{"class":"card"});ic.appendChild(el("div",{"class":"card-title"},"Inventory — All Warehouses"));
   const dashWaitMap={};
   db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)dashWaitMap[item.productId]=(dashWaitMap[item.productId]||0)+Number(item.qty||0);});});
-  const dashQuotedMap={};
-  db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{(q.items||[]).forEach(item=>{if(item.productId)dashQuotedMap[item.productId]=(dashQuotedMap[item.productId]||0)+Number(item.qty||0);});});
-  const dashRcvdMap={};
-  db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)dashRcvdMap[item.productId]=(dashRcvdMap[item.productId]||0)+Number(item.qty||0);});});
+  const dashCommittedMap={};
+  db.orderAcks.forEach(oa=>{const shipped=db.workOrders.some(w=>w.oaNumber===oa.number&&w.type==="Package & Ship"&&["shipped","complete"].includes(w.status));if(!shipped)(oa.items||[]).forEach(item=>{if(item.productId)dashCommittedMap[item.productId]=(dashCommittedMap[item.productId]||0)+Number(item.qty||0);});});
   // Header
-  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 44px 44px 50px",gap:"0 6px",padding:"3px 0 5px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
-  ["SKU","On Hand","Waiting","OH+W","Quoted","PO Rcvd","Total"].forEach((h,i)=>{
+  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 52px 50px",gap:"0 6px",padding:"3px 0 5px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
+  ["SKU","On Hand","Waiting","OH+W","Committed","Total"].forEach((h,i)=>{
     icHdr.appendChild(el("span",{"style":{fontSize:"9.5px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".4px",textAlign:i>0?"right":"left",whiteSpace:"nowrap"}},h));
   });
   ic.appendChild(icHdr);
@@ -671,18 +669,16 @@ function renderDash(){
     const onHand=db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${p.id}`]||0),0);
     const waiting=dashWaitMap[p.id]||0;
     const onHandWaiting=onHand+waiting;
-    const quoted=dashQuotedMap[p.id]||0;
-    const poRcvd=dashRcvdMap[p.id]||0;
-    const total=onHandWaiting-poRcvd;
-    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 44px 44px 50px",gap:"0 6px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
+    const committed=dashCommittedMap[p.id]||0;
+    const total=onHandWaiting-committed;
+    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 52px 50px",gap:"0 6px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
     function dv(v,color){return el("span",{"style":{fontSize:"11px",fontWeight:v>0?600:400,color:v>0?(color||"#1B2A4A"):"#94a3b8",textAlign:"right",minWidth:"44px",display:"block",textAlign:"right"}},v===0?"—":String(v));}
     r.append(
       el("span",{"class":"mono","style":{fontSize:"10.5px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.sku),
       dv(onHand,"#166534"),
       dv(waiting,"#92400e"),
       el("span",{"style":{fontSize:"11px",fontWeight:onHandWaiting>0?600:400,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"44px",display:"block"}},onHandWaiting===0?"—":String(onHandWaiting)),
-      dv(quoted,"#2563EB"),
-      dv(poRcvd,"#166534"),
+      dv(committed,"#dc2626"),
       el("span",{"style":{fontSize:"11px",fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",minWidth:"50px",display:"block"}},String(total))
     );
     ic.appendChild(r);
@@ -741,38 +737,37 @@ function renderInv(){
 
   // ── Shared metric builders ──
   function buildMaps(whId){
-    const waitingMap={},quotedMap={},receivedMap={};
+    // waitingMap: qty on open supplier POs targeted at this warehouse
+    const waitingMap={};
     db.purchaseOrders.filter(po=>po.status!=="received"&&(!whId||po.warehouseId===whId)).forEach(po=>{
       (po.items||[]).forEach(item=>{if(item.productId)waitingMap[item.productId]=(waitingMap[item.productId]||0)+Number(item.qty||0);});
     });
-    db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{
-      (q.items||[]).forEach(item=>{if(item.productId)quotedMap[item.productId]=(quotedMap[item.productId]||0)+Number(item.qty||0);});
+    // committedMap: qty in customer OAs not yet shipped (work order not shipped/complete)
+    const committedMap={};
+    db.orderAcks.forEach(oa=>{
+      const shipped=db.workOrders.some(w=>w.oaNumber===oa.number&&w.type==="Package & Ship"&&["shipped","complete"].includes(w.status));
+      if(!shipped)(oa.items||[]).forEach(item=>{if(item.productId)committedMap[item.productId]=(committedMap[item.productId]||0)+Number(item.qty||0);});
     });
-    db.purchaseOrders.filter(po=>po.status==="received"&&(!whId||po.warehouseId===whId)).forEach(po=>{
-      (po.items||[]).forEach(item=>{if(item.productId)receivedMap[item.productId]=(receivedMap[item.productId]||0)+Number(item.qty||0);});
-    });
-    return {waitingMap,quotedMap,receivedMap};
+    return {waitingMap,committedMap};
   }
 
-  function invTable(getOnHand, waitingMap, quotedMap, receivedMap){
+  function invTable(getOnHand, waitingMap, committedMap){
     function numTd(v,color){return td(v===0?"—":String(v),{color:v>0?(color||"#1B2A4A"):"#94a3b8",fontWeight:v>0?600:400,textAlign:"right",fontSize:"11.5px"});}
     return table(
-      ["SKU","Product","On Hand","Waiting On","OH + Waiting","Quoted","PO Rcvd","Total (OH+W−PO)"],
+      ["SKU","Product","On Hand","Waiting On","OH + Waiting","Committed (Unshipped OAs)","Total (OH+W−Committed)"],
       db.products,p=>{
         const onHand=getOnHand(p.id);
         const waiting=waitingMap[p.id]||0;
         const ohw=onHand+waiting;
-        const quoted=quotedMap[p.id]||0;
-        const poRcvd=receivedMap[p.id]||0;
-        const total=ohw-poRcvd;
+        const committed=committedMap[p.id]||0;
+        const total=ohw-committed;
         return[
           td(el("span",{"class":"mono"},p.sku)),
           td(p.name),
           numTd(onHand,"#166534"),
           numTd(waiting,"#92400e"),
           td(String(ohw),{fontWeight:600,color:ohw>0?"#1B2A4A":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
-          numTd(quoted,"#2563EB"),
-          numTd(poRcvd,"#166534"),
+          numTd(committed,"#dc2626"),
           td(String(total),{fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
         ];
       }
@@ -804,20 +799,19 @@ function renderInv(){
 
   // ── Total Inventory first ──
   if(db.warehouses.length>1){
-    const allWait={},allQuoted={},allRcvd={};
+    const allWait={},allCommitted={};
     db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)allWait[item.productId]=(allWait[item.productId]||0)+Number(item.qty||0);});});
-    db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{(q.items||[]).forEach(item=>{if(item.productId)allQuoted[item.productId]=(allQuoted[item.productId]||0)+Number(item.qty||0);});});
-    db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)allRcvd[item.productId]=(allRcvd[item.productId]||0)+Number(item.qty||0);});});
+    db.orderAcks.forEach(oa=>{const shipped=db.workOrders.some(w=>w.oaNumber===oa.number&&w.type==="Package & Ship"&&["shipped","complete"].includes(w.status));if(!shipped)(oa.items||[]).forEach(item=>{if(item.productId)allCommitted[item.productId]=(allCommitted[item.productId]||0)+Number(item.qty||0);});});
     wrap.appendChild(collapsibleSection(
       "Total Inventory — All Warehouses",
-      ()=>invTable(pid=>db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${pid}`]||0),0), allWait, allQuoted, allRcvd),
+      ()=>invTable(pid=>db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${pid}`]||0),0), allWait, allCommitted),
       null, true
     ));
   }
 
   // ── Per-warehouse sections ──
   db.warehouses.forEach(wh=>{
-    const {waitingMap,quotedMap,receivedMap}=buildMaps(wh.id);
+    const {waitingMap,committedMap}=buildMaps(wh.id);
     const actions=[
       btn("Edit","btn btn-gh",()=>showWhEditModal(wh)),
       btn("Remove","btn btn-dan",()=>confirmModal("Remove warehouse \""+wh.name+"\"?",()=>{db.warehouses=db.warehouses.filter(w=>w.id!==wh.id);log("warehouse.delete",wh.name);render();}))
@@ -825,7 +819,7 @@ function renderInv(){
     const subtitle=wh.loc?" — "+wh.loc:"";
     wrap.appendChild(collapsibleSection(
       wh.name+subtitle,
-      ()=>invTable(pid=>db.inventory[`${wh.id}::${pid}`]||0, waitingMap, quotedMap, receivedMap),
+      ()=>invTable(pid=>db.inventory[`${wh.id}::${pid}`]||0, waitingMap, committedMap),
       actions
     ));
   });
