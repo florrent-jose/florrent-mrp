@@ -119,7 +119,7 @@ const USERS=[{id:"u1",name:"Jose"},{id:"u2",name:"Joe"},{id:"u3",name:"Kaitlin"}
 const NAV=[
   {id:"dash",ico:"📊",lbl:"Dashboard"},
   {id:"prods",ico:"📦",lbl:"Products"},
-  {id:"inv",ico:"🏭",lbl:"Inventory"},
+  {id:"inv",ico:"🏭",lbl:"Inventory & Warehouses"},
   {id:"vend",ico:"🚚",lbl:"Vendors"},
   {id:"cust",ico:"👥",lbl:"Customers"},
   {id:"quot",ico:"📋",lbl:"Quotes"},
@@ -511,15 +511,18 @@ function showDocModal(doc,type,extraFn){
   // Line items table
   const lt=el("table",{"class":"doc-table","style":{marginBottom:"10px"}});
   const lth=el("thead",{});const ltr=el("tr",{});
-  ["Description","Qty","Unit Price (USD)","Extended (USD)"].forEach(h=>ltr.appendChild(el("th",{},h)));
+  const isPS=type==="PACKAGING SLIP";
+  (isPS?["Description","Qty"]:["Description","Qty","Unit Price (USD)","Extended (USD)"]).forEach(h=>ltr.appendChild(el("th",{},h)));
   lth.appendChild(ltr);lt.appendChild(lth);
   const ltb=el("tbody",{});
-  (doc.items||[]).forEach(i=>{const r=el("tr",{});[i.desc||i.description||"",i.qty,f$(i.up||i.unitPrice||0),f$(Number(i.qty)*Number(i.up||i.unitPrice||0))].forEach((v,idx)=>{const d=el("td",{"style":{textAlign:idx>0?"right":"left",fontWeight:idx===3?500:400}},String(v));r.appendChild(d);});ltb.appendChild(r);});
+  (doc.items||[]).forEach(i=>{const r=el("tr",{});
+    const cells=isPS?[i.desc||i.description||"",i.qty]:[i.desc||i.description||"",i.qty,f$(i.up||i.unitPrice||0),f$(Number(i.qty)*Number(i.up||i.unitPrice||0))];
+    cells.forEach((v,idx)=>{const d=el("td",{"style":{textAlign:idx>0?"right":"left",fontWeight:(!isPS&&idx===3)?500:400}},String(v));r.appendChild(d);});ltb.appendChild(r);});
   lt.appendChild(ltb);
   const ltf=el("tfoot",{});
   const totalRow=el("tr",{"style":{background:"#f8fafc"}});
-  totalRow.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:B,padding:"7px 10px"}},f$(tot)));
-  ltf.appendChild(totalRow);
+  if(!isPS){totalRow.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:B,padding:"7px 10px"}},f$(tot)));
+  ltf.appendChild(totalRow);}
   if(di>0){
     const dr=el("tr",{});dr.append(el("td",{"colspan":"3","style":{textAlign:"right",padding:"3px 10px",color:"#64748b"}},`Discount (${(di*100).toFixed(0)}%)`),el("td",{"style":{textAlign:"right",color:"#dc2626",padding:"3px 10px"}},"-"+f$(tot*di)));ltf.appendChild(dr);
     const dr2=el("tr",{"style":{background:"#eff6ff"}});dr2.append(el("td",{"colspan":"3","style":{textAlign:"right",fontWeight:"600",padding:"7px 10px"}},"TOTAL WITH DISCOUNT (USD)"),el("td",{"style":{textAlign:"right",fontWeight:"700",color:A,padding:"7px 10px"}},f$(tot*(1-di))));ltf.appendChild(dr2);
@@ -659,7 +662,7 @@ function renderDash(){
   const dashRcvdMap={};
   db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)dashRcvdMap[item.productId]=(dashRcvdMap[item.productId]||0)+Number(item.qty||0);});});
   // Header
-  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr repeat(6,auto)",gap:"0 10px",padding:"3px 0 5px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
+  const icHdr=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 44px 44px 50px",gap:"0 6px",padding:"3px 0 5px",borderBottom:"1px solid #e2e8f0",marginBottom:"3px"}});
   ["SKU","On Hand","Waiting","OH+W","Quoted","PO Rcvd","Total"].forEach((h,i)=>{
     icHdr.appendChild(el("span",{"style":{fontSize:"9.5px",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".4px",textAlign:i>0?"right":"left",whiteSpace:"nowrap"}},h));
   });
@@ -671,16 +674,16 @@ function renderDash(){
     const quoted=dashQuotedMap[p.id]||0;
     const poRcvd=dashRcvdMap[p.id]||0;
     const total=onHandWaiting-quoted;
-    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr repeat(6,auto)",gap:"0 10px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
-    function dv(v,color){return el("span",{"style":{fontSize:"11px",fontWeight:v>0?600:400,color:v>0?(color||"#1B2A4A"):"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},v===0?"—":String(v));}
+    const r=el("div",{"style":{display:"grid",gridTemplateColumns:"1fr 44px 44px 44px 44px 44px 50px",gap:"0 6px",padding:"3px 0",borderBottom:"1px solid #f8fafc",alignItems:"center"}});
+    function dv(v,color){return el("span",{"style":{fontSize:"11px",fontWeight:v>0?600:400,color:v>0?(color||"#1B2A4A"):"#94a3b8",textAlign:"right",minWidth:"44px",display:"block",textAlign:"right"}},v===0?"—":String(v));}
     r.append(
       el("span",{"class":"mono","style":{fontSize:"10.5px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},p.sku),
       dv(onHand,"#166534"),
       dv(waiting,"#92400e"),
-      el("span",{"style":{fontSize:"11px",fontWeight:onHandWaiting>0?600:400,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},onHandWaiting===0?"—":String(onHandWaiting)),
+      el("span",{"style":{fontSize:"11px",fontWeight:onHandWaiting>0?600:400,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",minWidth:"44px",display:"block"}},onHandWaiting===0?"—":String(onHandWaiting)),
       dv(quoted,"#2563EB"),
       dv(poRcvd,"#166534"),
-      el("span",{"style":{fontSize:"11px",fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",minWidth:"28px",display:"block"}},String(total))
+      el("span",{"style":{fontSize:"11px",fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",minWidth:"50px",display:"block"}},String(total))
     );
     ic.appendChild(r);
   });
@@ -732,69 +735,136 @@ function showProductModal(p){
 // ── INVENTORY ──
 function renderInv(){
   const db=state.db;const wrap=el("div",{});
-  const acts=el("div",{"style":{display:"flex",gap:"8px"}});
+  const acts=el("div",{"style":{display:"flex",gap:"8px",flexWrap:"wrap"}});
   acts.append(btn("Adjust Stock","btn btn-out",showAdjModal),btn("+ Warehouse","btn btn-pri",showWhModal));
-  wrap.appendChild(pageHeader("Inventory",acts));
+  wrap.appendChild(pageHeader("Inventory & Warehouses",acts));
+
+  // ── Shared metric builders ──
+  function buildMaps(whId){
+    const waitingMap={},quotedMap={},receivedMap={};
+    db.purchaseOrders.filter(po=>po.status!=="received"&&(!whId||po.warehouseId===whId)).forEach(po=>{
+      (po.items||[]).forEach(item=>{if(item.productId)waitingMap[item.productId]=(waitingMap[item.productId]||0)+Number(item.qty||0);});
+    });
+    db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{
+      (q.items||[]).forEach(item=>{if(item.productId)quotedMap[item.productId]=(quotedMap[item.productId]||0)+Number(item.qty||0);});
+    });
+    db.purchaseOrders.filter(po=>po.status==="received"&&(!whId||po.warehouseId===whId)).forEach(po=>{
+      (po.items||[]).forEach(item=>{if(item.productId)receivedMap[item.productId]=(receivedMap[item.productId]||0)+Number(item.qty||0);});
+    });
+    return {waitingMap,quotedMap,receivedMap};
+  }
+
+  function invTable(getOnHand, waitingMap, quotedMap, receivedMap){
+    function numTd(v,color){return td(v===0?"—":String(v),{color:v>0?(color||"#1B2A4A"):"#94a3b8",fontWeight:v>0?600:400,textAlign:"right",fontSize:"11.5px"});}
+    return table(
+      ["SKU","Product","On Hand","Waiting On","OH + Waiting","Quoted","PO Rcvd","Total (OH+W−PO)"],
+      db.products,p=>{
+        const onHand=getOnHand(p.id);
+        const waiting=waitingMap[p.id]||0;
+        const ohw=onHand+waiting;
+        const quoted=quotedMap[p.id]||0;
+        const poRcvd=receivedMap[p.id]||0;
+        const total=ohw-quoted;
+        return[
+          td(el("span",{"class":"mono"},p.sku)),
+          td(p.name),
+          numTd(onHand,"#166534"),
+          numTd(waiting,"#92400e"),
+          td(String(ohw),{fontWeight:600,color:ohw>0?"#1B2A4A":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
+          numTd(quoted,"#2563EB"),
+          numTd(poRcvd,"#166534"),
+          td(String(total),{fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
+        ];
+      }
+    );
+  }
+
+  function collapsibleSection(title, contentFn, actions, defaultOpen){
+    const section=el("div",{"class":"card","style":{marginBottom:"10px",padding:0,overflow:"hidden"}});
+    const isOpen={v:defaultOpen!==false};
+    const hdr=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",cursor:"pointer",background:"#f8fafc",borderBottom:isOpen.v?"1px solid #e2e8f0":"none"}});
+    const left=el("div",{"style":{display:"flex",alignItems:"center",gap:"8px"}});
+    const chevron=el("span",{"style":{fontSize:"10px",color:"#94a3b8",transition:"transform .2s",display:"inline-block",transform:isOpen.v?"rotate(90deg)":"rotate(0deg)"}},"▶");
+    const titleEl=el("span",{"style":{fontSize:"13px",fontWeight:600,color:"#1B2A4A"}},title);
+    left.append(chevron,titleEl);
+    const right=el("div",{"style":{display:"flex",gap:"6px"},...(actions?{}:{})},  ...(actions||[]));
+    hdr.append(left,right);
+    const body=el("div",{"style":{padding:"12px 16px",display:isOpen.v?"block":"none"}});
+    body.appendChild(contentFn());
+    hdr.addEventListener("click",e=>{
+      if(e.target.tagName==="BUTTON")return;
+      isOpen.v=!isOpen.v;
+      body.style.display=isOpen.v?"block":"none";
+      chevron.style.transform=isOpen.v?"rotate(90deg)":"rotate(0deg)";
+      hdr.style.borderBottom=isOpen.v?"1px solid #e2e8f0":"none";
+    });
+    section.append(hdr,body);
+    return section;
+  }
+
+  // ── Total Inventory first ──
+  if(db.warehouses.length>1){
+    const allWait={},allQuoted={},allRcvd={};
+    db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)allWait[item.productId]=(allWait[item.productId]||0)+Number(item.qty||0);});});
+    db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{(q.items||[]).forEach(item=>{if(item.productId)allQuoted[item.productId]=(allQuoted[item.productId]||0)+Number(item.qty||0);});});
+    db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{(po.items||[]).forEach(item=>{if(item.productId)allRcvd[item.productId]=(allRcvd[item.productId]||0)+Number(item.qty||0);});});
+    wrap.appendChild(collapsibleSection(
+      "Total Inventory — All Warehouses",
+      ()=>invTable(pid=>db.warehouses.reduce((s,wh)=>s+(db.inventory[`${wh.id}::${pid}`]||0),0), allWait, allQuoted, allRcvd),
+      null, true
+    ));
+  }
+
+  // ── Per-warehouse sections ──
   db.warehouses.forEach(wh=>{
-    const card=el("div",{"class":"card"});
-    const hdr=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}});
-    hdr.append(el("div",{},el("div",{"style":{fontSize:"14px",fontWeight:"600",color:B}},wh.name),el("div",{"style":{fontSize:"11.5px",color:"#64748b"}},wh.loc)),btn("Remove","btn btn-dan",()=>confirmModal("Remove warehouse \""+wh.name+"\"?",()=>{db.warehouses=db.warehouses.filter(w=>w.id!==wh.id);log("warehouse.delete",wh.name);render();})));
-    card.appendChild(hdr);
-    (()=>{
-      // Waiting On: open POs
-      const waitingMap={};
-      db.purchaseOrders.filter(po=>po.status!=="received").forEach(po=>{
-        (po.items||[]).forEach(item=>{if(item.productId)waitingMap[item.productId]=(waitingMap[item.productId]||0)+Number(item.qty||0);});
-      });
-      // Quoted: qty in non-expired quotes (draft/sent/accepted)
-      const quotedMap={};
-      db.quotes.filter(q=>["draft","sent","accepted"].includes(q.status)).forEach(q=>{
-        (q.items||[]).forEach(item=>{if(item.productId)quotedMap[item.productId]=(quotedMap[item.productId]||0)+Number(item.qty||0);});
-      });
-      // PO Received: cumulative qty from received POs
-      const receivedMap={};
-      db.purchaseOrders.filter(po=>po.status==="received").forEach(po=>{
-        (po.items||[]).forEach(item=>{if(item.productId)receivedMap[item.productId]=(receivedMap[item.productId]||0)+Number(item.qty||0);});
-      });
-      card.appendChild(table(
-        ["SKU","Product","On Hand","Waiting On","On Hand + Waiting","Quoted","PO Received","Total (On Hand + Waiting − Quoted)"],
-        db.products,p=>{
-          const onHand=db.inventory[`${wh.id}::${p.id}`]||0;
-          const waiting=waitingMap[p.id]||0;
-          const onHandWaiting=onHand+waiting;
-          const quoted=quotedMap[p.id]||0;
-          const poRcvd=receivedMap[p.id]||0;
-          const total=onHandWaiting-quoted;
-          function numTd(v,color){return td(v===0?"—":String(v),{color:v>0?(color||"#1B2A4A"):"#94a3b8",fontWeight:v>0?600:400,textAlign:"right",fontSize:"11.5px"});}
-          return[
-            td(el("span",{"class":"mono"},p.sku)),
-            td(p.name),
-            numTd(onHand,"#166534"),
-            numTd(waiting,"#92400e"),
-            td(String(onHandWaiting),{fontWeight:600,color:onHandWaiting>0?"#1B2A4A":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
-            numTd(quoted,"#2563EB"),
-            numTd(poRcvd,"#166534"),
-            td(String(total),{fontWeight:700,color:total>0?"#166534":total<0?"#dc2626":"#94a3b8",textAlign:"right",fontSize:"11.5px"}),
-          ];
-        }
-      ));
-    })();
-    wrap.appendChild(card);
+    const {waitingMap,quotedMap,receivedMap}=buildMaps(wh.id);
+    const actions=[
+      btn("Edit","btn btn-gh",()=>showWhEditModal(wh)),
+      btn("Remove","btn btn-dan",()=>confirmModal("Remove warehouse \""+wh.name+"\"?",()=>{db.warehouses=db.warehouses.filter(w=>w.id!==wh.id);log("warehouse.delete",wh.name);render();}))
+    ];
+    const subtitle=wh.loc?" — "+wh.loc:"";
+    wrap.appendChild(collapsibleSection(
+      wh.name+subtitle,
+      ()=>invTable(pid=>db.inventory[`${wh.id}::${pid}`]||0, waitingMap, quotedMap, receivedMap),
+      actions
+    ));
   });
-  if(!db.warehouses.length)wrap.appendChild(el("div",{"class":"card"},el("div",{"style":{color:"#94a3b8",textAlign:"center",padding:"16px"}},"No warehouses yet")));
+
+  if(!db.warehouses.length){
+    wrap.appendChild(el("div",{"class":"card"},el("div",{"style":{color:"#94a3b8",textAlign:"center",padding:"16px"}},"No warehouses yet")));
+  }
+
   return wrap;
 }
+
 function showWhModal(){
   let f={name:"",loc:""};
   const ov=modal("Add Warehouse","",close=>{
     const div=el("div",{});
-    div.append(fg("Name",inp("text",f.name,v=>f.name=v,"Warehouse name")),fg("Location",inp("text",f.loc,v=>f.loc=v,"City, State")));
+    div.append(fg("Name",inp("text",f.name,v=>f.name=v,"Warehouse name")),fg("Location / Address",inp("text",f.loc,v=>f.loc=v,"City, State or full address")));
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Add","btn btn-pri",()=>{f.id=uid();state.db.warehouses.push(f);log("warehouse.create",f.name);close();render();}));
     div.appendChild(btns);return div;
   });
   document.body.appendChild(ov);
 }
+
+function showWhEditModal(wh){
+  let name=wh.name,loc=wh.loc||"";
+  const ov=modal("Edit Warehouse","",close=>{
+    const div=el("div",{});
+    div.append(fg("Name",inp("text",name,v=>name=v)),fg("Location / Address",inp("text",loc,v=>loc=v)));
+    const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
+    btns.append(btn("Cancel","btn btn-out",close),btn("Save","btn btn-pri",()=>{
+      wh.name=name;wh.loc=loc;
+      const i=state.db.warehouses.findIndex(x=>x.id===wh.id);if(i>=0)state.db.warehouses[i]=wh;
+      log("warehouse.edit",wh.name);close();render();
+    }));
+    div.appendChild(btns);return div;
+  });
+  document.body.appendChild(ov);
+}
+
 function showAdjModal(){
   const db=state.db;let wh="",prod="",qty=0;
   const ov=modal("Adjust Inventory","",close=>{
@@ -1238,7 +1308,7 @@ function renderPO(){
           div.appendChild(fileUpload(uploads,file=>{uploads.push(file);}));
           const btns2=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"14px"}});
           function doReceive(){
-            (po.items||[]).forEach(item=>{if(item.productId){const wh=state.db.warehouses[0];if(wh){const key=wh.id+"::"+item.productId;state.db.inventory[key]=(state.db.inventory[key]||0)+Number(item.qty||1);}}});
+            (po.items||[]).forEach(item=>{if(item.productId){const wh=state.db.warehouses.find(w=>w.id===po.warehouseId)||state.db.warehouses[0];if(wh){const key=wh.id+"::"+item.productId;state.db.inventory[key]=(state.db.inventory[key]||0)+Number(item.qty||1);}}});
             po.attachments=po.attachments||[];uploads.forEach(f2=>po.attachments.push(f2));
             po.status="received";po.receivedAt=tod();
             log("po.received",po.number+(uploads.length?" ("+uploads.length+" docs)":""));close();render();
@@ -1261,7 +1331,7 @@ function showPOModal(){
   const ov=modal("New Purchase Order","lg",close=>{
     const div=el("div",{});
     const g=el("div",{"class":"form-grid-3"});
-    g.append(fg("PO #",inp("text",f.number,v=>f.number=v)),fg("Date",inp("date",f.date,v=>f.date=v)),fg("Class Code",sel([{v:"DEV",l:"DEV — Devices"},{v:"EQU",l:"EQU — Equipment"},{v:"MAT",l:"MAT — Direct Materials"},{v:"SUP",l:"SUP — Consumable Supplies"},{v:"SER",l:"SER — Services"},{v:"NRE",l:"NRE — Non-recurring Engineering"},{v:"CON",l:"CON — Consultant Hours"}],f.classCode||"DEV",v=>{f.classCode=v;f.number=gn("P",db.purchaseOrders,state.user.name,v);})),fg("Vendor",sel([{v:"",l:"Select vendor..."},...db.vendors.map(v=>({v:v.id,l:v.companyName}))],f.vendorId,v=>f.vendorId=v)),fg("Deliver To",sel(db.locations.map(l=>({v:l.id,l:l.name})),f.locationId,v=>f.locationId=v)),fg("Check-In (days)",inp("number","21",v=>f.checkInDays=v)),fg("Est. Ship Date",inp("date",f.estShipDate,v=>f.estShipDate=v)));
+    g.append(fg("PO #",inp("text",f.number,v=>f.number=v)),fg("Date",inp("date",f.date,v=>f.date=v)),fg("Class Code",sel([{v:"DEV",l:"DEV — Devices"},{v:"EQU",l:"EQU — Equipment"},{v:"MAT",l:"MAT — Direct Materials"},{v:"SUP",l:"SUP — Consumable Supplies"},{v:"SER",l:"SER — Services"},{v:"NRE",l:"NRE — Non-recurring Engineering"},{v:"CON",l:"CON — Consultant Hours"}],f.classCode||"DEV",v=>{f.classCode=v;f.number=gn("P",db.purchaseOrders,state.user.name,v);})),fg("Vendor",sel([{v:"",l:"Select vendor..."},...db.vendors.map(v=>({v:v.id,l:v.companyName}))],f.vendorId,v=>f.vendorId=v)),fg("Ship To Warehouse",sel([{v:"",l:"Select warehouse..."},...db.warehouses.map(w=>({v:w.id,l:w.name}))],f.warehouseId||"",v=>f.warehouseId=v)),fg("Check-In (days)",inp("number","21",v=>f.checkInDays=v)),fg("Est. Ship Date",inp("date",f.estShipDate,v=>f.estShipDate=v)));
     div.appendChild(g);
     div.appendChild(secLbl("Line Items"));
     const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v,true);
@@ -1271,7 +1341,7 @@ function showPOModal(){
     div.appendChild(tg);
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Cancel","btn btn-out",close),btn("Save PO","btn btn-pri",()=>{
-      f.id=uid();f.items=items;f.total=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);f.status="open";f.shipDateHistory=[];f.attachments=[];f.createdBy=state.user.name;f.createdAt=tod();
+      f.id=uid();f.items=items;f.total=items.reduce((s,i)=>s+Number(i.qty)*Number(i.up),0);f.status="open";f.shipDateHistory=[];f.attachments=[];f.createdBy=state.user.name;f.createdAt=tod();f.warehouseId=f.warehouseId||"";
       db.purchaseOrders.push(f);log("po.create",f.number);close();render();
     }));
     div.appendChild(btns);return div;
@@ -1343,7 +1413,7 @@ function renderWO(){
         if(ps)showDocModal({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP");
         else alert("Packaging slip not found");
       }},wo.packagingSlipNumber):el("span",{"style":{color:"#94a3b8"}},"—")),
-    td(wo.shippingLabel?el("span",{"style":{color:"#166534"}},"✓ attached"):"—",{fontSize:"10.5px"}),
+    td((wo.shippingLabels&&wo.shippingLabels.length)?el("span",{"style":{color:"#166534","fontWeight":600}},"✓ "+(wo.shippingLabels.length>1?wo.shippingLabels.length+" labels":"attached")):wo.shippingLabel?el("span",{"style":{color:"#166534"}},"✓ attached"):"—",{fontSize:"10.5px"}),
     tdFlex([
       // "Create & Send Order Ack" WO — mark sent/complete
       wo.type==="Create & Send Order Ack"&&wo.status!=="complete"?btn("Mark OA Sent","btn btn-gh",()=>{
@@ -1353,8 +1423,10 @@ function renderWO(){
       }):null,
       // "Package & Ship" WO flow
       wo.type==="Package & Ship"&&wo.status==="shipping"&&!wo.packagingSlipId?btn("Pack Slip","btn btn-gh",()=>showPackSlipModal(wo)):null,
-      wo.type==="Package & Ship"&&wo.status==="shipping"&&wo.packagingSlipId&&!wo.shippingLabel?btn("Upload Label","btn btn-gh",()=>showLabelModal(wo)):null,
-      wo.type==="Package & Ship"&&wo.status==="shipping"&&wo.packagingSlipId&&wo.shippingLabel?btn("Mark Shipped","btn btn-gh",()=>{wo.status="shipped";wo.shippedAt=tod();log("wo.shipped",wo.number);render();}):null,
+      wo.packagingSlipId?btn("View Pack Slip(s)","btn btn-gh",()=>showPackSlipsModal(wo)):null,
+      wo.type==="Package & Ship"&&wo.status==="shipping"&&wo.packagingSlipId&&!(wo.shippingLabel||(wo.shippingLabels&&wo.shippingLabels.length))?btn("Upload Label","btn btn-gh",()=>showLabelModal(wo)):null,
+      (wo.shippingLabel||(wo.shippingLabels&&wo.shippingLabels.length))?btn("View Label(s)","btn btn-gh",()=>showLabelModal(wo)):null,
+      wo.type==="Package & Ship"&&wo.status==="shipping"&&wo.packagingSlipId&&(wo.shippingLabel||(wo.shippingLabels&&wo.shippingLabels.length))?btn("Mark Shipped","btn btn-gh",()=>{wo.status="shipped";wo.shippedAt=tod();log("wo.shipped",wo.number);render();}):null,
       wo.status==="shipped"?btn("Complete","btn btn-gh",()=>{wo.status="complete";wo.completedAt=tod();log("wo.complete",wo.number);render();}):null,
       btn("Del","btn btn-dan",()=>confirmModal("Delete work order "+wo.number+"?",()=>{db.workOrders=db.workOrders.filter(x=>x.id!==wo.id);log("wo.delete",wo.number);render();})),
     ].filter(Boolean))
@@ -1362,31 +1434,186 @@ function renderWO(){
   wrap.appendChild(card);return wrap;
 }
 function showPackSlipModal(wo){
-  const db=state.db;let items=[...(wo.items||[])];
+  const db=state.db;
+
+  // Start with one slip section
+  const defaultWh=db.warehouses.find(w=>w.isDefault)||db.warehouses[0];
+  const slipSections=[{whId:defaultWh?defaultWh.id:"",items:(wo.items||[]).map(i=>({...i}))}];
+
   const ov=modal("Packaging Slip — "+wo.number,"lg",close=>{
-    const div=el("div",{});
-    div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"9px"}},"Confirm items for the packaging slip:"));
-    const liWrap=el("div",{});renderLineItems(liWrap,items,db.products,v=>items=v);
-    div.appendChild(liWrap);
-    const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
-    btns.append(btn("Cancel","btn btn-out",close),btn("Generate Packaging Slip","btn btn-pri",()=>{
-      const n=gn("S",db.packagingSlips,state.user.name);
-      const ps={id:uid(),number:n,date:tod(),workOrderId:wo.id,items,oaNumber:wo.oaNumber||"",customerId:wo.customerId,createdBy:state.user.name};
-      db.packagingSlips.push(ps);wo.packagingSlipId=ps.id;wo.packagingSlipNumber=ps.number;
-      log("packslip.create",n);close();render();
-      setTimeout(()=>printDoc({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP"),300);
-    }));
-    div.appendChild(btns);return div;
+    const outer=el("div",{});
+    outer.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"12px"}},"Confirm items and warehouse for each packaging slip. Add additional slips to fulfill from multiple warehouses."));
+
+    const slipsContainer=el("div",{});
+
+    // buildSlipSection defined here so it can call rebuildSlips
+    function buildSlipSection(div, slipItems, whId, slipIndex){
+      const wh=db.warehouses.find(w=>w.id===whId)||db.warehouses[0];
+      const whLabel=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}});
+      whLabel.append(
+        el("span",{"style":{fontSize:"12px",fontWeight:600,color:"#1B2A4A"}},(wh?wh.name:"Select Warehouse")),
+        el("span",{"style":{fontSize:"11px",color:"#64748b"}},wh&&wh.loc?wh.loc:"")
+      );
+      div.appendChild(whLabel);
+      div.appendChild(fg("Ship From Warehouse",sel(
+        [{v:"",l:"Select warehouse..."},...db.warehouses.map(w=>({v:w.id,l:w.name+(w.loc?" — "+w.loc:"")}))],
+        whId,
+        v=>{slipSections[slipIndex].whId=v;rebuildSlips();}
+      )));
+      div.appendChild(el("div",{"style":{marginTop:"8px"}}));
+      const liWrap=el("div",{"style":{overflowX:"auto",marginTop:"6px"}});
+      function renderSlipItems(){
+        liWrap.innerHTML="";
+        const t=el("table",{"class":"line-items-table"});
+        const thead=el("thead",{});const hr=el("tr",{});
+        ["Description","Qty",""].forEach(h=>hr.appendChild(el("th",{},h)));
+        thead.appendChild(hr);t.appendChild(thead);
+        const tbody=el("tbody",{});
+        slipSections[slipIndex].items.forEach((item,idx)=>{
+          const r=el("tr",{});
+          const qtyInp=document.createElement("input");
+          qtyInp.type="number";qtyInp.value=item.qty;qtyInp.min="0";
+          qtyInp.style.cssText="width:70px;padding:4px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:11.5px;font-family:inherit";
+          qtyInp.addEventListener("input",e=>{slipSections[slipIndex].items[idx].qty=e.target.value;});
+          const delBtn=document.createElement("button");delBtn.textContent="×";
+          delBtn.style.cssText="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;line-height:1;padding:0;font-family:inherit";
+          delBtn.addEventListener("click",()=>{slipSections[slipIndex].items.splice(idx,1);renderSlipItems();});
+          r.append(
+            el("td",{"style":{padding:"5px 8px"}},item.desc||item.description||""),
+            el("td",{"style":{padding:"5px 8px",width:"80px"}},qtyInp),
+            el("td",{"style":{padding:"5px 8px"}},delBtn)
+          );
+          tbody.appendChild(r);
+        });
+        t.appendChild(tbody);
+        liWrap.appendChild(t);
+      }
+      renderSlipItems();
+      div.appendChild(liWrap);
+    }
+
+    function rebuildSlips(){
+      slipsContainer.innerHTML="";
+      slipSections.forEach((sec,i)=>{
+        const block=el("div",{"style":{border:"1px solid #e2e8f0",borderRadius:"8px",padding:"12px",marginBottom:"10px",background:i===0?"#fafbfc":"#fff"}});
+        const blockHdr=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}});
+        blockHdr.appendChild(el("span",{"style":{fontSize:"12px",fontWeight:700,color:"#1B2A4A"}},"Packaging Slip "+(i+1)+(i===0?" (Primary)":"")));
+        if(i>0){
+          const rm=btn("Remove","btn btn-dan",()=>{slipSections.splice(i,1);rebuildSlips();});
+          blockHdr.appendChild(rm);
+        }
+        block.appendChild(blockHdr);
+        buildSlipSection(block, sec.items, sec.whId, i);
+        slipsContainer.appendChild(block);
+      });
+    }
+    rebuildSlips();
+    outer.appendChild(slipsContainer);
+
+    // Add another warehouse button
+    const addSlipBtn=btn("+ Add Packaging Slip from Another Warehouse","btn btn-out",()=>{
+      slipSections.push({whId:"",items:(wo.items||[]).map(i=>({...i}))});
+      rebuildSlips();
+    });
+    addSlipBtn.style.cssText+="border-color:#2563EB;color:#2563EB;margin-bottom:12px";
+    outer.appendChild(addSlipBtn);
+
+    const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"4px"}});
+    btns.append(
+      btn("Cancel","btn btn-out",close),
+      btn("Generate All Packaging Slips","btn btn-pri",()=>{
+        const generated=[];
+        slipSections.forEach((sec,i)=>{
+          if(!sec.items||sec.items.length===0)return;
+          const n=gn("S",db.packagingSlips,state.user.name);
+          const ps={id:uid(),number:n,date:tod(),workOrderId:wo.id,items:sec.items,
+                    oaNumber:wo.oaNumber||"",customerId:wo.customerId,
+                    warehouseId:sec.whId,createdBy:state.user.name};
+          db.packagingSlips.push(ps);
+          if(i===0){wo.packagingSlipId=ps.id;wo.packagingSlipNumber=ps.number;}
+          wo.packagingSlipIds=wo.packagingSlipIds||[];wo.packagingSlipIds.push(ps.id);
+          generated.push(ps);
+          log("packslip.create",n+(sec.whId?" ("+db.warehouses.find(w=>w.id===sec.whId)?.name+")":""));
+        });
+        close();render();
+        generated.forEach((ps,i)=>{
+          setTimeout(()=>printDoc({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP"),300+i*600);
+        });
+      })
+    );
+    outer.appendChild(btns);
+    return outer;
   });
   document.body.appendChild(ov);
 }
-function showLabelModal(wo){
-  const ov=modal("Upload Shipping Label — "+wo.number,"",close=>{
+function showPackSlipsModal(wo){
+  const db=state.db;
+  // Gather all slips for this WO
+  const slipIds=wo.packagingSlipIds&&wo.packagingSlipIds.length?wo.packagingSlipIds:[wo.packagingSlipId].filter(Boolean);
+  const slips=slipIds.map(id=>db.packagingSlips.find(ps=>ps.id===id)).filter(Boolean);
+  const ov=modal("Pack Slip(s) — "+wo.number,"lg",close=>{
     const div=el("div",{});
-    div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"11px"}},"Upload the shipping label before marking as shipped."));
-    const files=wo.shippingLabel?[wo.shippingLabel]:[];
-    const upload=fileUpload(files,file=>{wo.shippingLabel=file;log("wo.label",file.name);},".pdf,.png,.jpg");
-    div.appendChild(upload);
+    if(!slips.length){
+      div.appendChild(el("div",{"style":{color:"#94a3b8",padding:"16px",textAlign:"center"}},"No packaging slips found."));
+      return div;
+    }
+    div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"12px"}},slips.length+" packaging slip"+(slips.length>1?"s":"")+" generated for this work order."));
+    slips.forEach((ps,i)=>{
+      const wh=db.warehouses.find(w=>w.id===ps.warehouseId);
+      const block=el("div",{"style":{border:"1px solid #e2e8f0",borderRadius:"8px",padding:"12px",marginBottom:"10px"}});
+      const hdr=el("div",{"style":{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}});
+      const left=el("div",{});
+      left.appendChild(el("div",{"style":{fontFamily:"monospace",fontWeight:600,color:"#2563EB",fontSize:"12px"}},ps.number));
+      if(wh)left.appendChild(el("div",{"style":{fontSize:"11px",color:"#64748b",marginTop:"2px"}},"Warehouse: "+wh.name+(wh.loc?" — "+wh.loc:"")));
+      left.appendChild(el("div",{"style":{fontSize:"11px",color:"#64748b"}},"Date: "+ps.date));
+      const printBtn=btn("🖨 Print / Save PDF","btn btn-pri",()=>{
+        printDoc({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP");
+      });
+      hdr.append(left,printBtn);
+      block.appendChild(hdr);
+      // Items table (desc + qty only)
+      const t=el("table",{"style":{width:"100%",borderCollapse:"collapse",fontSize:"12px"}});
+      const thead=el("thead",{});const hr=el("tr",{});
+      ["Description","Qty"].forEach(h=>{const th=el("th",{"style":{padding:"5px 8px",textAlign:h==="Qty"?"right":"left",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",fontWeight:600,fontSize:"11px",color:"#475569"}},h);hr.appendChild(th);});
+      thead.appendChild(hr);t.appendChild(thead);
+      const tbody=el("tbody",{});
+      (ps.items||[]).forEach(item=>{
+        const r=el("tr",{});
+        r.append(
+          el("td",{"style":{padding:"5px 8px",borderBottom:"1px solid #f9fafb"}},item.desc||item.description||""),
+          el("td",{"style":{padding:"5px 8px",borderBottom:"1px solid #f9fafb",textAlign:"right",fontWeight:500}},String(item.qty))
+        );
+        tbody.appendChild(r);
+      });
+      t.appendChild(tbody);
+      block.appendChild(t);
+      div.appendChild(block);
+    });
+    if(slips.length>1){
+      const printAllBtn=btn("🖨 Print All Slips","btn btn-pri",()=>{
+        slips.forEach((ps,i)=>{
+          setTimeout(()=>printDoc({...ps,locationId:wo.locationId,customerId:wo.customerId},"PACKAGING SLIP"),i*600);
+        });
+      });
+      printAllBtn.style.width="100%";printAllBtn.style.marginTop="4px";
+      div.appendChild(printAllBtn);
+    }
+    return div;
+  });
+  document.body.appendChild(ov);
+}
+
+function showLabelModal(wo){
+  const ov=modal("Upload Shipping Label(s) — "+wo.number,"",close=>{
+    const div=el("div",{});
+    div.appendChild(el("div",{"style":{fontSize:"12px",color:"#64748b",marginBottom:"11px"}},"Upload one or more shipping labels before marking as shipped."));
+    if(!wo.shippingLabels)wo.shippingLabels=wo.shippingLabel?[wo.shippingLabel]:[];
+    div.appendChild(fileUpload(
+      wo.shippingLabels,
+      file=>{wo.shippingLabels=wo.shippingLabels||[];wo.shippingLabels.push(file);wo.shippingLabel=file;log("wo.label",file.name);render();},
+      ".pdf,.png,.jpg,.jpeg",
+      files=>{wo.shippingLabels=files;wo.shippingLabel=files[files.length-1]||null;render();}
+    ));
     const btns=el("div",{"style":{display:"flex",justifyContent:"flex-end",gap:"8px",marginTop:"12px"}});
     btns.append(btn("Done","btn btn-out",close));
     div.appendChild(btns);return div;
@@ -1434,7 +1661,56 @@ function showLocModal(){
 // ── AUDIT LOG ──
 function renderAud(){
   const db=state.db;const wrap=el("div",{});
-  wrap.appendChild(pageHeader("Audit Log"));
+
+  // Export: save full state as JSON embedded in an HTML file
+  function exportData(){
+    const snapshot=JSON.stringify(state.db,function(k,v){return v;},2);
+    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>florrent MRP Backup '+tod()+'</title></head><body>'
+      +'<script id="mrp-data" type="application/json">'+snapshot+'<\/script>'
+      +'<p style="font-family:sans-serif;padding:20px">florrent MRP data backup — '+new Date().toLocaleString()
+      +'<br>Import this file in the MRP app via Audit Log → Import Data.</p>'
+      +'</body></html>';
+    const blob=new Blob([html],{type:"text/html"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="florrent-mrp-backup-"+tod()+".html";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    log("data.export","Exported snapshot");
+  }
+
+  // Import: load state from a previously exported backup HTML
+  function importData(){
+    const inp=document.createElement("input");inp.type="file";inp.accept=".html";
+    inp.addEventListener("change",e=>{
+      const f=e.target.files[0];if(!f)return;
+      const r=new FileReader();
+      r.onload=ev=>{
+        try{
+          const parser=new DOMParser();
+          const doc2=parser.parseFromString(ev.target.result,"text/html");
+          const script=doc2.getElementById("mrp-data");
+          if(!script)throw new Error("No MRP data found in file.");
+          const imported=JSON.parse(script.textContent);
+          const keys=["products","vendors","customers","warehouses","quotes","orderAcks",
+                      "invoices","purchaseOrders","workOrders","packagingSlips","locations","auditLog","inventory"];
+          keys.forEach(k=>{if(imported[k]!==undefined)state.db[k]=imported[k];});
+          log("data.import","Imported from "+f.name);
+          render();
+        } catch(err){alert("Import failed: "+err.message);}
+      };
+      r.readAsText(f);
+    });
+    inp.click();
+  }
+
+  const acts=el("div",{"style":{display:"flex",gap:"8px",flexWrap:"wrap"}});
+  acts.append(
+    btn("Export Data (Backup)","btn btn-out",exportData),
+    btn("Import Data","btn btn-out",importData),
+    btn("Clear Log","btn btn-dan",()=>confirmModal("Clear the entire audit log? This cannot be undone.",()=>{state.db.auditLog=[];log("auditlog.cleared","Audit log cleared");render();}))
+  );
+  wrap.appendChild(pageHeader("Audit Log",acts));
+
   const card=el("div",{"class":"card"});
   card.appendChild(table(["Timestamp","User","Action","Detail"],db.auditLog,r=>[
     td(new Date(r.ts).toLocaleString(),{fontSize:"10.5px",whiteSpace:"nowrap"}),
